@@ -5,3 +5,6 @@ services:
     shm_size: '2gb'
     volumes:
       - ".:/root/work"
+    ports:
+      - 8888:8888
+    command: jupyter lab --ip=0.0.0.0 --allow-root --no-browser --NotebookApp.notebook_dir='/root/kaggle' --NotebookApp.token=''

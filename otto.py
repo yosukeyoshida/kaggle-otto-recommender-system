@@ -50,33 +50,17 @@ def gen_aid_pairs():
     return all_pairs
 
 
-if os.path.exists(CFG.TOP_20_CACHE):
-    print("Reading top20 AIDs from cache")
-    top_20 = pickle.load(open(CFG.TOP_20_CACHE, "rb"))
-else:
-    all_pairs = gen_aid_pairs()
-    df_top_20 = []
-    for aid, cnt in tqdm(all_pairs.items()):
-        df_top_20.append({"aid1": aid, "aid2": [aid2 for aid2, freq in cnt.most_common(20)]})
-    df_top_20 = pd.DataFrame(df_top_20).set_index("aid1")
-    top_20 = df_top_20.aid2.to_dict()
-    import pickle
-
-    with open(os.path.join(CFG.output_dir, "top_20_aids.pkl"), "wb") as f:
-        pickle.dump(top_20, f)
-top_20_orders = pickle.load(open("./input/otto-pickles-4/top_40_orders_v12.pkl", "rb"))
-top_20_carts = pickle.load(open("./input/otto-pickles-4/top_40_carts_v13.pkl", "rb"))
-
-
 def load_test():
     dfs = []
     for e, chunk_file in enumerate(tqdm(glob.glob("./input/otto-chunk-data-inparquet-format/test_parquet/*"))):
         chunk = pd.read_parquet(chunk_file)
         dfs.append(chunk)
+        if CFG.DEBUG:
+            break
     return pd.concat(dfs).reset_index(drop=True).astype({"ts": "datetime64[ms]"})
 
 
-def suggest_aids(df):
+def suggest_aids(df, top_20):
     # REMOVE DUPLICATE AIDS AND REVERSE ORDER OF LIST
 
     ###CHANGED PART-----------------------------------------------------------------------------
@@ -111,7 +95,7 @@ def suggest_aids(df):
     return list(aids) + top_aids2[: 20 - len(aids)]
 
 
-def suggest_orders(df):
+def suggest_orders(df, top_20_orders):
     # REMOVE DUPLICATE AIDS AND REVERSE ORDER OF LIST
     ###CHANGED PART-----------------------------------------------------------------------------
     aids = df.aid.tolist()
@@ -134,7 +118,7 @@ def suggest_orders(df):
     return list(aids) + top_aids2[: 20 - len(aids)]
 
 
-def suggest_carts(df):
+def suggest_carts(df, top_20_carts):
     # REMOVE DUPLICATE AIDS AND REVERSE ORDER OF LIST
     ###CHANGED PART-----------------------------------------------------------------------------
     aids = df.aid.tolist()
@@ -158,6 +142,21 @@ def suggest_carts(df):
 
 
 def main():
+    if os.path.exists(CFG.TOP_20_CACHE):
+        print("Reading top20 AIDs from cache")
+        top_20 = pickle.load(open(CFG.TOP_20_CACHE, "rb"))
+    else:
+        all_pairs = gen_aid_pairs()
+        df_top_20 = []
+        for aid, cnt in tqdm(all_pairs.items()):
+            df_top_20.append({"aid1": aid, "aid2": [aid2 for aid2, freq in cnt.most_common(20)]})
+        df_top_20 = pd.DataFrame(df_top_20).set_index("aid1")
+        top_20 = df_top_20.aid2.to_dict()
+        with open(os.path.join(CFG.output_dir, "top_20_aids.pkl"), "wb") as f:
+            pickle.dump(top_20, f)
+    top_20_orders = pickle.load(open("./input/otto-pickles-4/top_40_orders_v12.pkl", "rb"))
+    top_20_carts = pickle.load(open("./input/otto-pickles-4/top_40_carts_v13.pkl", "rb"))
+
     for i, (k, v) in enumerate(top_20.items()):
         print(k, v)
         if i > 10:
@@ -166,14 +165,14 @@ def main():
     test_df = load_test()
     tqdm.pandas()  # enable progress_apply in pandas
 
-    pred_df = test_df.sort_values(["session", "ts"]).groupby(["session"]).progress_apply(lambda x: suggest_aids(x))
+    pred_df = test_df.sort_values(["session", "ts"]).groupby(["session"]).progress_apply(lambda x: suggest_aids(x, top_20))
 
     ##################
     # BELOW IS CODE ADDED BY CHRIS
 
-    pred_df_orders = test_df.sort_values(["session", "ts"]).groupby(["session"]).progress_apply(lambda x: suggest_orders(x))
+    pred_df_orders = test_df.sort_values(["session", "ts"]).groupby(["session"]).progress_apply(lambda x: suggest_orders(x, top_20_orders))
 
-    pred_df_carts = test_df.sort_values(["session", "ts"]).groupby(["session"]).progress_apply(lambda x: suggest_carts(x))
+    pred_df_carts = test_df.sort_values(["session", "ts"]).groupby(["session"]).progress_apply(lambda x: suggest_carts(x, top_20_carts))
 
     clicks_pred_df = pd.DataFrame(pred_df.add_suffix("_clicks"), columns=["labels"]).reset_index()
     orders_pred_df = pd.DataFrame(pred_df_orders.add_suffix("_orders"), columns=["labels"]).reset_index()
