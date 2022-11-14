@@ -11,16 +11,28 @@ import pandas as pd
 
 
 class CFG:
-    type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
     VER = 2
+    type_labels = {"clicks": 0, "carts": 1, "orders": 2}
+    type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
+    type_weight = {0: 1, 1: 6, 2: 3}
+    CV = True
+    debug = False
+    use_saved_models = True
 
 
 def load_test():
     dfs = []
-    for e, chunk_file in enumerate(glob.glob("./input/otto-chunk-data-inparquet-format/test_parquet/*")):
+    if CFG.CV:
+        file_path = "./input/otto-validation/test_parquet/*"
+    else:
+        file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+    for e, chunk_file in enumerate(glob.glob(file_path)):
         chunk = pd.read_parquet(chunk_file)
         dfs.append(chunk)
-    return pd.concat(dfs).reset_index(drop=True).astype({"ts": "datetime64[ms]"})
+    df = pd.concat(dfs).reset_index(drop=True).astype({"ts": "datetime64[ms]"})
+    if CFG.debug:
+        df = df.loc[:100]
+    return df
 
 
 def suggest_clicks(df, top_20_clicks, top_clicks):
@@ -78,80 +90,14 @@ def suggest_buys(df, top_20_buy2buy, top_20_buys, top_orders):
     return result + list(top_orders)[: 20 - len(result)]
 
 
-def main():
-    output_dir = "output"
-    files = glob.glob("./input/otto-chunk-data-inparquet-format/*_parquet/*")
-    CHUNK = int(np.ceil(len(files) / 6))
-    print(f"We will process {len(files)} files in chunk size {CHUNK} files.")
+def read_file(f):
+    df = cudf.read_parquet(f)
+    df.ts = (df.ts / 1000).astype("int32")
+    df["type"] = df["type"].map(CFG.type_labels).astype("int8")
+    return df
 
-    type_labels = {"clicks": 0, "carts": 1, "orders": 2}
-    type_weight = {0: 1, 1: 6, 2: 3}
 
-    DISK_PIECES = 4
-    SIZE = 1.86e6 / DISK_PIECES
-
-    # COMPUTE IN PARTS FOR MEMORY MANGEMENT
-    for PART in range(DISK_PIECES):
-        print()
-        print("### DISK PART", PART + 1)
-
-        # MERGE IS FASTEST PROCESSING CHUNKS WITHIN CHUNKS
-        # => OUTER CHUNKS
-        for j in range(6):
-            a = j * CHUNK
-            b = min((j + 1) * CHUNK, len(files))
-            print(f"Processing files {a} thru {b - 1}...")
-
-            # => INNER CHUNKS
-            for k in range(a, b):
-                # READ FILE
-                df = cudf.read_parquet(files[k])
-                df.ts = (df.ts / 1000).astype("int32")
-                df["type"] = df["type"].map(type_labels).astype("int8")
-                df = df.sort_values(["session", "ts"], ascending=[True, False])
-                # USE TAIL OF SESSION
-                df = df.reset_index(drop=True)
-                df["n"] = df.groupby("session").cumcount()
-                df = df.loc[df.n < 30].drop("n", axis=1)
-                # CREATE PAIRS
-                df = df.merge(df, on="session")
-                df = df.loc[((df.ts_x - df.ts_y).abs() < 24 * 60 * 60) & (df.aid_x != df.aid_y)]
-                # MEMORY MANAGEMENT COMPUTE IN PARTS
-                df = df.loc[(df.aid_x >= PART * SIZE) & (df.aid_x < (PART + 1) * SIZE)]
-                # ASSIGN WEIGHTS
-                df = df[["session", "aid_x", "aid_y", "type_y"]].drop_duplicates(["session", "aid_x", "aid_y"])
-                df["wgt"] = df.type_y.map(type_weight)
-                df = df[["aid_x", "aid_y", "wgt"]]
-                df.wgt = df.wgt.astype("float32")
-                df = df.groupby(["aid_x", "aid_y"]).wgt.sum()
-                # COMBINE INNER CHUNKS
-                if k == a:
-                    tmp2 = df
-                else:
-                    tmp2 = tmp2.add(df, fill_value=0)
-                print(k, ", ", end="")
-            print()
-            # COMBINE OUTER CHUNKS
-            if a == 0:
-                tmp = tmp2
-            else:
-                tmp = tmp.add(tmp2, fill_value=0)
-            del tmp2, df
-            gc.collect()
-        # CONVERT MATRIX TO DICTIONARY
-        tmp = tmp.reset_index()
-        tmp = tmp.sort_values(["aid_x", "wgt"], ascending=[True, False])
-        # SAVE TOP 40
-        tmp = tmp.reset_index(drop=True)
-        tmp["n"] = tmp.groupby("aid_x").aid_y.cumcount()
-        tmp = tmp.loc[tmp.n < 40].drop("n", axis=1)
-        # SAVE PART TO DISK
-        df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_40_carts_orders_v{CFG.VER}_{PART}.pkl"), "wb") as f:
-            pickle.dump(df.to_dict(), f)
-
-    type_labels = {"clicks": 0, "carts": 1, "orders": 2}
-
+def calc_top_40_buy2buy(files, CHUNK, output_dir):
     DISK_PIECES = 1
     SIZE = 1.86e6 / DISK_PIECES
 
@@ -170,9 +116,7 @@ def main():
             # => INNER CHUNKS
             for k in range(a, b):
                 # READ FILE
-                df = cudf.read_parquet(files[k])
-                df.ts = (df.ts / 1000).astype("int32")
-                df["type"] = df["type"].map(type_labels).astype("int8")
+                df = read_file(files[k])
                 df = df.loc[df["type"].isin([1, 2])]  # ONLY WANT CARTS AND ORDERS
                 df = df.sort_values(["session", "ts"], ascending=[True, False])
                 # USE TAIL OF SESSION
@@ -216,8 +160,8 @@ def main():
         with open(os.path.join(output_dir, f"top_40_buy2buy_v{CFG.VER}_{PART}.pkl"), "wb") as f:
             pickle.dump(df.to_dict(), f)
 
-    type_labels = {"clicks": 0, "carts": 1, "orders": 2}
 
+def calc_top_40_clicks(files, CHUNK, output_dir):
     DISK_PIECES = 4
     SIZE = 1.86e6 / DISK_PIECES
 
@@ -236,9 +180,7 @@ def main():
             # => INNER CHUNKS
             for k in range(a, b):
                 # READ FILE
-                df = cudf.read_parquet(files[k])
-                df.ts = (df.ts / 1000).astype("int32")
-                df["type"] = df["type"].map(type_labels).astype("int8")
+                df = read_file(files[k])
                 df = df.sort_values(["session", "ts"], ascending=[True, False])
                 # USE TAIL OF SESSION
                 df = df.reset_index(drop=True)
@@ -281,6 +223,92 @@ def main():
         with open(os.path.join(output_dir, f"top_40_clicks_v{CFG.VER}_{PART}.pkl"), "wb") as f:
             pickle.dump(df.to_dict(), f)
 
+
+def calc_top_40_carts_orders(files, CHUNK, output_dir):
+    DISK_PIECES = 4
+    SIZE = 1.86e6 / DISK_PIECES
+
+    # COMPUTE IN PARTS FOR MEMORY MANGEMENT
+    for PART in range(DISK_PIECES):
+        print()
+        print("### DISK PART", PART + 1)
+
+        # MERGE IS FASTEST PROCESSING CHUNKS WITHIN CHUNKS
+        # => OUTER CHUNKS
+        for j in range(6):
+            a = j * CHUNK
+            b = min((j + 1) * CHUNK, len(files))
+            print(f"Processing files {a} thru {b - 1}...")
+
+            # => INNER CHUNKS
+            for k in range(a, b):
+                # READ FILE
+                df = read_file(files[k])
+                df = df.sort_values(["session", "ts"], ascending=[True, False])
+                # USE TAIL OF SESSION
+                df = df.reset_index(drop=True)
+                df["n"] = df.groupby("session").cumcount()
+                df = df.loc[df.n < 30].drop("n", axis=1)
+                # CREATE PAIRS
+                df = df.merge(df, on="session")
+                df = df.loc[((df.ts_x - df.ts_y).abs() < 24 * 60 * 60) & (df.aid_x != df.aid_y)]
+                # MEMORY MANAGEMENT COMPUTE IN PARTS
+                df = df.loc[(df.aid_x >= PART * SIZE) & (df.aid_x < (PART + 1) * SIZE)]
+                # ASSIGN WEIGHTS
+                df = df[["session", "aid_x", "aid_y", "type_y"]].drop_duplicates(["session", "aid_x", "aid_y"])
+                df["wgt"] = df.type_y.map(CFG.type_weight)
+                df = df[["aid_x", "aid_y", "wgt"]]
+                df.wgt = df.wgt.astype("float32")
+                df = df.groupby(["aid_x", "aid_y"]).wgt.sum()
+                # COMBINE INNER CHUNKS
+                if k == a:
+                    tmp2 = df
+                else:
+                    tmp2 = tmp2.add(df, fill_value=0)
+                print(k, ", ", end="")
+            print()
+            # COMBINE OUTER CHUNKS
+            if a == 0:
+                tmp = tmp2
+            else:
+                tmp = tmp.add(tmp2, fill_value=0)
+            del tmp2, df
+            gc.collect()
+        # CONVERT MATRIX TO DICTIONARY
+        tmp = tmp.reset_index()
+        tmp = tmp.sort_values(["aid_x", "wgt"], ascending=[True, False])
+        # SAVE TOP 40
+        tmp = tmp.reset_index(drop=True)
+        tmp["n"] = tmp.groupby("aid_x").aid_y.cumcount()
+        tmp = tmp.loc[tmp.n < 40].drop("n", axis=1)
+        # SAVE PART TO DISK
+        df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
+        with open(os.path.join(output_dir, f"top_40_carts_orders_v{CFG.VER}_{PART}.pkl"), "wb") as f:
+            pickle.dump(df.to_dict(), f)
+
+
+def main():
+    if CFG.CV:
+        output_dir = "output/validation"
+    else:
+        output_dir = "output"
+    if CFG.CV:
+        file_path = "./input/otto-validation/*_parquet/*"
+    else:
+        file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+    files = glob.glob(file_path)
+    CHUNK = int(np.ceil(len(files) / 6))
+    print(f"We will process {len(files)} files in chunk size {CHUNK} files.")
+
+    if not CFG.use_saved_models:
+        calc_top_40_carts_orders(files, CHUNK, output_dir)
+        calc_top_40_buy2buy(files, CHUNK, output_dir)
+        calc_top_40_clicks(files, CHUNK, output_dir)
+    else:
+        print("use saved models!!!")
+
+    DISK_PIECES = 4
+
     test_df = load_test()
     # THREE CO-VISITATION MATRICES
     top_20_clicks = pickle.load(open(os.path.join(output_dir, f"top_40_clicks_v{CFG.VER}_0.pkl"), "rb"))
@@ -288,7 +316,7 @@ def main():
         top_20_clicks.update(pickle.load(open(os.path.join(output_dir, f"top_40_clicks_v{CFG.VER}_{k}.pkl"), "rb")))
     top_20_buys = pickle.load(open(os.path.join(output_dir, f"top_40_carts_orders_v{CFG.VER}_0.pkl"), "rb"))
     for k in range(1, DISK_PIECES):
-        top_20_buys.update(pickle.load(open(os.path.join(f"top_40_carts_orders_v{CFG.VER}_{k}.pkl"), "rb")))
+        top_20_buys.update(pickle.load(open(os.path.join(output_dir, f"top_40_carts_orders_v{CFG.VER}_{k}.pkl"), "rb")))
     top_20_buy2buy = pickle.load(open(os.path.join(output_dir, f"top_40_buy2buy_v{CFG.VER}_0.pkl"), "rb"))
 
     # TOP CLICKS AND ORDERS IN TEST
@@ -310,7 +338,39 @@ def main():
     pred_df = pd.concat([clicks_pred_df, orders_pred_df, carts_pred_df])
     pred_df.columns = ["session_type", "labels"]
     pred_df["labels"] = pred_df.labels.apply(lambda x: " ".join(map(str, x)))
-    pred_df.to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+    if CFG.CV:
+        output_file_name = "validation_preds.csv"
+    else:
+        output_file_name = "submission.csv"
+    pred_df.to_csv(os.path.join(output_dir, output_file_name), index=False)
+
+    if CFG.CV:
+        # FREE MEMORY
+        del pred_df_clicks, pred_df_buys, clicks_pred_df, orders_pred_df, carts_pred_df
+        del top_20_clicks, top_20_buy2buy, top_20_buys, top_clicks, top_orders, test_df
+        _ = gc.collect()
+
+        # COMPUTE METRIC
+        score = 0
+        weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+        for t in ["clicks", "carts", "orders"]:
+            sub = pred_df.loc[pred_df.session_type.str.contains(t)].copy()
+            sub["session"] = sub.session_type.apply(lambda x: int(x.split("_")[0]))
+            sub.labels = sub.labels.apply(lambda x: [int(i) for i in x.split(" ")[:20]])
+            test_labels = pd.read_parquet("./input/otto-validation/test_labels.parquet")
+            test_labels = test_labels.loc[test_labels["type"] == t]
+            test_labels = test_labels.merge(sub, how="left", on=["session"])
+            if CFG.debug:
+                test_labels = test_labels[test_labels["labels"].notnull()]
+            test_labels["hits"] = test_labels.apply(lambda df: len(set(df.ground_truth).intersection(set(df.labels))), axis=1)
+            test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
+            recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
+            score += weights[t] * recall
+            print(f"{t} recall =", recall)
+
+        print("=============")
+        print("Overall Recall =", score)
+        print("=============")
 
 
 if __name__ == "__main__":
