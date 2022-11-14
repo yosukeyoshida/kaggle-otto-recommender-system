@@ -1,3 +1,9 @@
-FROM kaggle/python
+FROM rapidsai/rapidsai-core:22.04-cuda11.0-base-ubuntu20.04-py3.9
+
+RUN apt update -q
+RUN apt install -qy make
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+RUN pip install wandb jupyterlab
 
 WORKDIR /root/work/

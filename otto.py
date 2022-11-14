@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from tqdm.notebook import tqdm
 
+
 class CFG:
     output_dir = "output"
     DEBUG = True
@@ -18,7 +19,7 @@ class CFG:
     type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
 
 
-def gen_pairs(df, SAMPLING = 1):
+def gen_pairs(df, SAMPLING=1):
     df = df.query("session % @SAMPLING == 0").groupby("session", as_index=False, sort=False).apply(lambda g: g.tail(30)).reset_index(drop=True)
     df = pd.merge(df, df, on="session")
     pairs = df.query("abs(ts_x - ts_y) < 24 * 60 * 60 * 1000 and aid_x != aid_y")[["session", "aid_x", "aid_y", "ts_x", "type_y"]].drop_duplicates(
