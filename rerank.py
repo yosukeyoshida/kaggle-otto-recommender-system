@@ -1,4 +1,5 @@
 import gc
+import wandb
 import glob
 import itertools
 import os
@@ -11,13 +12,12 @@ import pandas as pd
 
 
 class CFG:
-    VER = 2
     type_labels = {"clicks": 0, "carts": 1, "orders": 2}
     type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
     type_weight = {0: 1, 1: 6, 2: 3}
     CV = True
-    debug = False
-    use_saved_models = True
+    use_saved_models = False
+    wandb = True
 
 
 def load_test():
@@ -30,8 +30,6 @@ def load_test():
         chunk = pd.read_parquet(chunk_file)
         dfs.append(chunk)
     df = pd.concat(dfs).reset_index(drop=True).astype({"ts": "datetime64[ms]"})
-    if CFG.debug:
-        df = df.loc[:100]
     return df
 
 
@@ -157,7 +155,7 @@ def calc_top_40_buy2buy(files, CHUNK, output_dir):
         tmp = tmp.loc[tmp.n < 40].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_40_buy2buy_v{CFG.VER}_{PART}.pkl"), "wb") as f:
+        with open(os.path.join(output_dir, f"top_40_buy2buy_{PART}.pkl"), "wb") as f:
             pickle.dump(df.to_dict(), f)
 
 
@@ -220,7 +218,7 @@ def calc_top_40_clicks(files, CHUNK, output_dir):
         tmp = tmp.loc[tmp.n < 40].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_40_clicks_v{CFG.VER}_{PART}.pkl"), "wb") as f:
+        with open(os.path.join(output_dir, f"top_40_clicks_{PART}.pkl"), "wb") as f:
             pickle.dump(df.to_dict(), f)
 
 
@@ -283,15 +281,21 @@ def calc_top_40_carts_orders(files, CHUNK, output_dir):
         tmp = tmp.loc[tmp.n < 40].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_40_carts_orders_v{CFG.VER}_{PART}.pkl"), "wb") as f:
+        with open(os.path.join(output_dir, f"top_40_carts_orders_{PART}.pkl"), "wb") as f:
             pickle.dump(df.to_dict(), f)
 
 
 def main():
-    if CFG.CV:
-        output_dir = "output/validation"
+    run_name = None
+    if CFG.wandb:
+        wandb.init(project="kaggle-otto")
+        run_name = wandb.run.name
+    if run_name is not None:
+        output_dir = os.path.join("output", run_name)
     else:
         output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
+
     if CFG.CV:
         file_path = "./input/otto-validation/*_parquet/*"
     else:
@@ -311,13 +315,13 @@ def main():
 
     test_df = load_test()
     # THREE CO-VISITATION MATRICES
-    top_20_clicks = pickle.load(open(os.path.join(output_dir, f"top_40_clicks_v{CFG.VER}_0.pkl"), "rb"))
+    top_20_clicks = pickle.load(open(os.path.join(output_dir, f"top_40_clicks_0.pkl"), "rb"))
     for k in range(1, DISK_PIECES):
-        top_20_clicks.update(pickle.load(open(os.path.join(output_dir, f"top_40_clicks_v{CFG.VER}_{k}.pkl"), "rb")))
-    top_20_buys = pickle.load(open(os.path.join(output_dir, f"top_40_carts_orders_v{CFG.VER}_0.pkl"), "rb"))
+        top_20_clicks.update(pickle.load(open(os.path.join(output_dir, f"top_40_clicks_{k}.pkl"), "rb")))
+    top_20_buys = pickle.load(open(os.path.join(output_dir, f"top_40_carts_orders_0.pkl"), "rb"))
     for k in range(1, DISK_PIECES):
-        top_20_buys.update(pickle.load(open(os.path.join(output_dir, f"top_40_carts_orders_v{CFG.VER}_{k}.pkl"), "rb")))
-    top_20_buy2buy = pickle.load(open(os.path.join(output_dir, f"top_40_buy2buy_v{CFG.VER}_0.pkl"), "rb"))
+        top_20_buys.update(pickle.load(open(os.path.join(output_dir, f"top_40_carts_orders_{k}.pkl"), "rb")))
+    top_20_buy2buy = pickle.load(open(os.path.join(output_dir, f"top_40_buy2buy_0.pkl"), "rb"))
 
     # TOP CLICKS AND ORDERS IN TEST
     top_clicks = test_df.loc[test_df["type"] == "clicks", "aid"].value_counts().index.values[:20]
@@ -360,18 +364,14 @@ def main():
             test_labels = pd.read_parquet("./input/otto-validation/test_labels.parquet")
             test_labels = test_labels.loc[test_labels["type"] == t]
             test_labels = test_labels.merge(sub, how="left", on=["session"])
-            if CFG.debug:
-                test_labels = test_labels[test_labels["labels"].notnull()]
             test_labels["hits"] = test_labels.apply(lambda df: len(set(df.ground_truth).intersection(set(df.labels))), axis=1)
             test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
             recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
             score += weights[t] * recall
-            print(f"{t} recall =", recall)
-
-        print("=============")
-        print("Overall Recall =", score)
-        print("=============")
-
+            if CFG.wandb:
+                wandb.log({f"{t} recall": recall})
+    if CFG.wandb:
+        wandb.log({f"total recall": score})
 
 if __name__ == "__main__":
     main()
