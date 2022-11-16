@@ -15,17 +15,16 @@ class CFG:
     type_labels = {"clicks": 0, "carts": 1, "orders": 2}
     type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
     type_weight = {0: 1, 1: 6, 2: 3}
-    CV = False
     use_saved_models = False
-    wandb = False
+    wandb = True
     top_n_clicks = 20
     top_n_carts_orders = 15
     top_n_buy2buy = 15
 
 
-def load_test():
+def load_test(cv: bool):
     dfs = []
-    if CFG.CV:
+    if cv:
         file_path = "./input/otto-validation/test_parquet/*"
     else:
         file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
@@ -288,18 +287,8 @@ def calc_top_carts_orders(files, CHUNK, output_dir, n):
             pickle.dump(df.to_dict(), f)
 
 
-def main():
-    run_name = None
-    if CFG.wandb:
-        wandb.init(project="kaggle-otto")
-        run_name = wandb.run.name
-    if run_name is not None:
-        output_dir = os.path.join("output", run_name)
-    else:
-        output_dir = "output"
-    os.makedirs(output_dir, exist_ok=True)
-
-    if CFG.CV:
+def main(cv: bool, output_dir: str):
+    if cv:
         file_path = "./input/otto-validation/*_parquet/*"
     else:
         file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
@@ -316,7 +305,7 @@ def main():
 
     DISK_PIECES = 4
 
-    test_df = load_test()
+    test_df = load_test(cv=cv)
     # THREE CO-VISITATION MATRICES
     top_n_clicks = pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_clicks}_clicks_0.pkl"), "rb"))
     for k in range(1, DISK_PIECES):
@@ -341,13 +330,13 @@ def main():
     pred_df = pd.concat([clicks_pred_df, orders_pred_df, carts_pred_df])
     pred_df.columns = ["session_type", "labels"]
     pred_df["labels"] = pred_df.labels.apply(lambda x: " ".join(map(str, x)))
-    if CFG.CV:
+    if cv:
         output_file_name = "validation_preds.csv"
     else:
         output_file_name = "submission.csv"
     pred_df.to_csv(os.path.join(output_dir, output_file_name), index=False)
 
-    if CFG.CV:
+    if cv:
         # FREE MEMORY
         del pred_df_clicks, pred_df_buys, clicks_pred_df, orders_pred_df, carts_pred_df
         del top_n_clicks, top_n_buy2buy, top_n_buys, top_clicks, top_orders, test_df
@@ -369,8 +358,20 @@ def main():
             score += weights[t] * recall
             if CFG.wandb:
                 wandb.log({f"{t} recall": recall})
-    if CFG.wandb:
-        wandb.log({f"total recall": score})
+        if CFG.wandb:
+            wandb.log({f"total recall": score})
 
 if __name__ == "__main__":
-    main()
+    run_name = None
+    if CFG.wandb:
+        wandb.init(project="kaggle-otto")
+        run_name = wandb.run.name
+    if run_name is not None:
+        output_dir = os.path.join("output", run_name)
+    else:
+        output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
+    main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    wandb.finish()
+    main(cv=False, output_dir=output_dir)
