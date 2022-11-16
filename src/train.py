@@ -129,7 +129,7 @@ def calc_top_buy2buy(files, CHUNK, output_dir, n):
                 # MEMORY MANAGEMENT COMPUTE IN PARTS
                 df = df.loc[(df.aid_x >= PART * SIZE) & (df.aid_x < (PART + 1) * SIZE)]
                 # ASSIGN WEIGHTS
-                df = df[["session", "aid_x", "aid_y", "type_y"]].drop_duplicates(["session", "aid_x", "aid_y"])
+                df = df[["session", "aid_x", "aid_y", "type_y"]].drop_duplicates(["session", "aid_x", "aid_y", "type_y"])
                 df["wgt"] = 1
                 df = df[["aid_x", "aid_y", "wgt"]]
                 df.wgt = df.wgt.astype("float32")
@@ -255,7 +255,7 @@ def calc_top_carts_orders(files, CHUNK, output_dir, n):
                 # MEMORY MANAGEMENT COMPUTE IN PARTS
                 df = df.loc[(df.aid_x >= PART * SIZE) & (df.aid_x < (PART + 1) * SIZE)]
                 # ASSIGN WEIGHTS
-                df = df[["session", "aid_x", "aid_y", "type_y"]].drop_duplicates(["session", "aid_x", "aid_y"])
+                df = df[["session", "aid_x", "aid_y", "type_y"]].drop_duplicates(["session", "aid_x", "aid_y", "type_y"])
                 df["wgt"] = df.type_y.map(CFG.type_weight)
                 df = df[["aid_x", "aid_y", "wgt"]]
                 df.wgt = df.wgt.astype("float32")
