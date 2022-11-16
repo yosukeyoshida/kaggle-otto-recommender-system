@@ -15,9 +15,12 @@ class CFG:
     type_labels = {"clicks": 0, "carts": 1, "orders": 2}
     type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
     type_weight = {0: 1, 1: 6, 2: 3}
-    CV = True
+    CV = False
     use_saved_models = False
-    wandb = True
+    wandb = False
+    top_n_clicks = 20
+    top_n_carts_orders = 15
+    top_n_buy2buy = 15
 
 
 def load_test():
@@ -33,7 +36,7 @@ def load_test():
     return df
 
 
-def suggest_clicks(df, top_20_clicks, top_clicks):
+def suggest_clicks(df, top_n_clicks, top_clicks):
     # USER HISTORY AIDS AND TYPES
     aids = df.aid.tolist()
     types = df.type.tolist()
@@ -48,7 +51,7 @@ def suggest_clicks(df, top_20_clicks, top_clicks):
         sorted_aids = [k for k, v in aids_temp.most_common(20)]
         return sorted_aids
     # USE "CLICKS" CO-VISITATION MATRIX
-    aids2 = list(itertools.chain(*[top_20_clicks[aid] for aid in unique_aids if aid in top_20_clicks]))
+    aids2 = list(itertools.chain(*[top_n_clicks[aid] for aid in unique_aids if aid in top_n_clicks]))
     # RERANK CANDIDATES
     top_aids2 = [aid2 for aid2, cnt in Counter(aids2).most_common(20) if aid2 not in unique_aids]
     result = unique_aids + top_aids2[: 20 - len(unique_aids)]
@@ -56,7 +59,7 @@ def suggest_clicks(df, top_20_clicks, top_clicks):
     return result + list(top_clicks)[: 20 - len(result)]
 
 
-def suggest_buys(df, top_20_buy2buy, top_20_buys, top_orders):
+def suggest_buys(df, top_n_buy2buy, top_n_buys, top_orders):
     # USER HISTORY AIDS AND TYPES
     aids = df.aid.tolist()
     types = df.type.tolist()
@@ -72,15 +75,15 @@ def suggest_buys(df, top_20_buy2buy, top_20_buys, top_orders):
         for aid, w, t in zip(aids, weights, types):
             aids_temp[aid] += w * CFG.type_weight_multipliers[t]
         # RERANK CANDIDATES USING "BUY2BUY" CO-VISITATION MATRIX
-        aids3 = list(itertools.chain(*[top_20_buy2buy[aid] for aid in unique_buys if aid in top_20_buy2buy]))
+        aids3 = list(itertools.chain(*[top_n_buy2buy[aid] for aid in unique_buys if aid in top_n_buy2buy]))
         for aid in aids3:
             aids_temp[aid] += 0.1
         sorted_aids = [k for k, v in aids_temp.most_common(20)]
         return sorted_aids
     # USE "CART ORDER" CO-VISITATION MATRIX
-    aids2 = list(itertools.chain(*[top_20_buys[aid] for aid in unique_aids if aid in top_20_buys]))
+    aids2 = list(itertools.chain(*[top_n_buys[aid] for aid in unique_aids if aid in top_n_buys]))
     # USE "BUY2BUY" CO-VISITATION MATRIX
-    aids3 = list(itertools.chain(*[top_20_buy2buy[aid] for aid in unique_buys if aid in top_20_buy2buy]))
+    aids3 = list(itertools.chain(*[top_n_buy2buy[aid] for aid in unique_buys if aid in top_n_buy2buy]))
     # RERANK CANDIDATES
     top_aids2 = [aid2 for aid2, cnt in Counter(aids2 + aids3).most_common(20) if aid2 not in unique_aids]
     result = unique_aids + top_aids2[: 20 - len(unique_aids)]
@@ -95,7 +98,7 @@ def read_file(f):
     return df
 
 
-def calc_top_40_buy2buy(files, CHUNK, output_dir):
+def calc_top_buy2buy(files, CHUNK, output_dir, n):
     DISK_PIECES = 1
     SIZE = 1.86e6 / DISK_PIECES
 
@@ -152,14 +155,14 @@ def calc_top_40_buy2buy(files, CHUNK, output_dir):
         # SAVE TOP 40
         tmp = tmp.reset_index(drop=True)
         tmp["n"] = tmp.groupby("aid_x").aid_y.cumcount()
-        tmp = tmp.loc[tmp.n < 40].drop("n", axis=1)
+        tmp = tmp.loc[tmp.n < n].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_40_buy2buy_{PART}.pkl"), "wb") as f:
+        with open(os.path.join(output_dir, f"top_{n}_buy2buy_{PART}.pkl"), "wb") as f:
             pickle.dump(df.to_dict(), f)
 
 
-def calc_top_40_clicks(files, CHUNK, output_dir):
+def calc_top_clicks(files, CHUNK, output_dir, n):
     DISK_PIECES = 4
     SIZE = 1.86e6 / DISK_PIECES
 
@@ -215,14 +218,14 @@ def calc_top_40_clicks(files, CHUNK, output_dir):
         # SAVE TOP 40
         tmp = tmp.reset_index(drop=True)
         tmp["n"] = tmp.groupby("aid_x").aid_y.cumcount()
-        tmp = tmp.loc[tmp.n < 40].drop("n", axis=1)
+        tmp = tmp.loc[tmp.n < n].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_40_clicks_{PART}.pkl"), "wb") as f:
+        with open(os.path.join(output_dir, f"top_{n}_clicks_{PART}.pkl"), "wb") as f:
             pickle.dump(df.to_dict(), f)
 
 
-def calc_top_40_carts_orders(files, CHUNK, output_dir):
+def calc_top_carts_orders(files, CHUNK, output_dir, n):
     DISK_PIECES = 4
     SIZE = 1.86e6 / DISK_PIECES
 
@@ -278,10 +281,10 @@ def calc_top_40_carts_orders(files, CHUNK, output_dir):
         # SAVE TOP 40
         tmp = tmp.reset_index(drop=True)
         tmp["n"] = tmp.groupby("aid_x").aid_y.cumcount()
-        tmp = tmp.loc[tmp.n < 40].drop("n", axis=1)
+        tmp = tmp.loc[tmp.n < n].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_40_carts_orders_{PART}.pkl"), "wb") as f:
+        with open(os.path.join(output_dir, f"top_{n}_carts_orders_{PART}.pkl"), "wb") as f:
             pickle.dump(df.to_dict(), f)
 
 
@@ -305,9 +308,9 @@ def main():
     print(f"We will process {len(files)} files in chunk size {CHUNK} files.")
 
     if not CFG.use_saved_models:
-        calc_top_40_carts_orders(files, CHUNK, output_dir)
-        calc_top_40_buy2buy(files, CHUNK, output_dir)
-        calc_top_40_clicks(files, CHUNK, output_dir)
+        calc_top_carts_orders(files, CHUNK, output_dir, CFG.top_n_carts_orders)
+        calc_top_buy2buy(files, CHUNK, output_dir, CFG.top_n_buy2buy)
+        calc_top_clicks(files, CHUNK, output_dir, CFG.top_n_clicks)
     else:
         print("use saved models!!!")
 
@@ -315,24 +318,20 @@ def main():
 
     test_df = load_test()
     # THREE CO-VISITATION MATRICES
-    top_20_clicks = pickle.load(open(os.path.join(output_dir, f"top_40_clicks_0.pkl"), "rb"))
+    top_n_clicks = pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_clicks}_clicks_0.pkl"), "rb"))
     for k in range(1, DISK_PIECES):
-        top_20_clicks.update(pickle.load(open(os.path.join(output_dir, f"top_40_clicks_{k}.pkl"), "rb")))
-    top_20_buys = pickle.load(open(os.path.join(output_dir, f"top_40_carts_orders_0.pkl"), "rb"))
+        top_n_clicks.update(pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_clicks}_clicks_{k}.pkl"), "rb")))
+    top_n_buys = pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_carts_orders}_carts_orders_0.pkl"), "rb"))
     for k in range(1, DISK_PIECES):
-        top_20_buys.update(pickle.load(open(os.path.join(output_dir, f"top_40_carts_orders_{k}.pkl"), "rb")))
-    top_20_buy2buy = pickle.load(open(os.path.join(output_dir, f"top_40_buy2buy_0.pkl"), "rb"))
+        top_n_buys.update(pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_carts_orders}_carts_orders_{k}.pkl"), "rb")))
+    top_n_buy2buy = pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_buy2buy}_buy2buy_0.pkl"), "rb"))
 
     # TOP CLICKS AND ORDERS IN TEST
     top_clicks = test_df.loc[test_df["type"] == "clicks", "aid"].value_counts().index.values[:20]
     top_orders = test_df.loc[test_df["type"] == "orders", "aid"].value_counts().index.values[:20]
-    print("Here are size of our 3 co-visitation matrices:")
-    len(top_20_clicks), len(top_20_buy2buy), len(top_20_buys)
-
-    pred_df_clicks = test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_clicks(x, top_20_clicks, top_clicks))
-
+    pred_df_clicks = test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_clicks(x, top_n_clicks, top_clicks))
     pred_df_buys = (
-        test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_20_buy2buy, top_20_buys, top_orders))
+        test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys, top_orders))
     )
 
     clicks_pred_df = pd.DataFrame(pred_df_clicks.add_suffix("_clicks"), columns=["labels"]).reset_index()
@@ -351,7 +350,7 @@ def main():
     if CFG.CV:
         # FREE MEMORY
         del pred_df_clicks, pred_df_buys, clicks_pred_df, orders_pred_df, carts_pred_df
-        del top_20_clicks, top_20_buy2buy, top_20_buys, top_clicks, top_orders, test_df
+        del top_n_clicks, top_n_buy2buy, top_n_buys, top_clicks, top_orders, test_df
         _ = gc.collect()
 
         # COMPUTE METRIC
