@@ -5,6 +5,7 @@ import itertools
 import os
 import pickle
 from collections import Counter
+import optuna
 
 import cudf
 import numpy as np
@@ -14,12 +15,13 @@ import pandas as pd
 class CFG:
     type_labels = {"clicks": 0, "carts": 1, "orders": 2}
     type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
-    type_weight = {0: 1, 1: 6, 2: 3}
-    use_saved_models = False
-    wandb = True
+    # type_weight = {0: 1, 1: 6, 2: 3}
     top_n_clicks = 20
     top_n_carts_orders = 15
     top_n_buy2buy = 15
+    use_saved_models = False
+    wandb = True
+    cv_only = False
 
 
 def load_test(cv: bool):
@@ -103,15 +105,11 @@ def calc_top_buy2buy(files, CHUNK, output_dir, n):
 
     # COMPUTE IN PARTS FOR MEMORY MANGEMENT
     for PART in range(DISK_PIECES):
-        print()
-        print("### DISK PART", PART + 1)
-
         # MERGE IS FASTEST PROCESSING CHUNKS WITHIN CHUNKS
         # => OUTER CHUNKS
         for j in range(6):
             a = j * CHUNK
             b = min((j + 1) * CHUNK, len(files))
-            print(f"Processing files {a} thru {b - 1}...")
 
             # => INNER CHUNKS
             for k in range(a, b):
@@ -139,8 +137,6 @@ def calc_top_buy2buy(files, CHUNK, output_dir, n):
                     tmp2 = df
                 else:
                     tmp2 = tmp2.add(df, fill_value=0)
-                print(k, ", ", end="")
-            print()
             # COMBINE OUTER CHUNKS
             if a == 0:
                 tmp = tmp2
@@ -167,15 +163,11 @@ def calc_top_clicks(files, CHUNK, output_dir, n):
 
     # COMPUTE IN PARTS FOR MEMORY MANGEMENT
     for PART in range(DISK_PIECES):
-        print()
-        print("### DISK PART", PART + 1)
-
         # MERGE IS FASTEST PROCESSING CHUNKS WITHIN CHUNKS
         # => OUTER CHUNKS
         for j in range(6):
             a = j * CHUNK
             b = min((j + 1) * CHUNK, len(files))
-            print(f"Processing files {a} thru {b - 1}...")
 
             # => INNER CHUNKS
             for k in range(a, b):
@@ -202,8 +194,6 @@ def calc_top_clicks(files, CHUNK, output_dir, n):
                     tmp2 = df
                 else:
                     tmp2 = tmp2.add(df, fill_value=0)
-                print(k, ", ", end="")
-            print()
             # COMBINE OUTER CHUNKS
             if a == 0:
                 tmp = tmp2
@@ -224,21 +214,17 @@ def calc_top_clicks(files, CHUNK, output_dir, n):
             pickle.dump(df.to_dict(), f)
 
 
-def calc_top_carts_orders(files, CHUNK, output_dir, n):
+def calc_top_carts_orders(files, CHUNK, output_dir, n, type_weight):
     DISK_PIECES = 4
     SIZE = 1.86e6 / DISK_PIECES
 
     # COMPUTE IN PARTS FOR MEMORY MANGEMENT
     for PART in range(DISK_PIECES):
-        print()
-        print("### DISK PART", PART + 1)
-
         # MERGE IS FASTEST PROCESSING CHUNKS WITHIN CHUNKS
         # => OUTER CHUNKS
         for j in range(6):
             a = j * CHUNK
             b = min((j + 1) * CHUNK, len(files))
-            print(f"Processing files {a} thru {b - 1}...")
 
             # => INNER CHUNKS
             for k in range(a, b):
@@ -256,7 +242,7 @@ def calc_top_carts_orders(files, CHUNK, output_dir, n):
                 df = df.loc[(df.aid_x >= PART * SIZE) & (df.aid_x < (PART + 1) * SIZE)]
                 # ASSIGN WEIGHTS
                 df = df[["session", "aid_x", "aid_y", "type_y"]].drop_duplicates(["session", "aid_x", "aid_y", "type_y"])
-                df["wgt"] = df.type_y.map(CFG.type_weight)
+                df["wgt"] = df.type_y.map(type_weight)
                 df = df[["aid_x", "aid_y", "wgt"]]
                 df.wgt = df.wgt.astype("float32")
                 df = df.groupby(["aid_x", "aid_y"]).wgt.sum()
@@ -265,8 +251,6 @@ def calc_top_carts_orders(files, CHUNK, output_dir, n):
                     tmp2 = df
                 else:
                     tmp2 = tmp2.add(df, fill_value=0)
-                print(k, ", ", end="")
-            print()
             # COMBINE OUTER CHUNKS
             if a == 0:
                 tmp = tmp2
@@ -288,16 +272,16 @@ def calc_top_carts_orders(files, CHUNK, output_dir, n):
 
 
 def main(cv: bool, output_dir: str):
+    type_weight = {0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917}
     if cv:
         file_path = "./input/otto-validation/*_parquet/*"
     else:
         file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
     files = glob.glob(file_path)
     CHUNK = int(np.ceil(len(files) / 6))
-    print(f"We will process {len(files)} files in chunk size {CHUNK} files.")
 
     if not CFG.use_saved_models:
-        calc_top_carts_orders(files, CHUNK, output_dir, CFG.top_n_carts_orders)
+        calc_top_carts_orders(files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight)
         calc_top_buy2buy(files, CHUNK, output_dir, CFG.top_n_buy2buy)
         calc_top_clicks(files, CHUNK, output_dir, CFG.top_n_clicks)
     else:
@@ -360,8 +344,25 @@ def main(cv: bool, output_dir: str):
                 wandb.log({f"{t} recall": recall})
         if CFG.wandb:
             wandb.log({f"total recall": score})
+        return score
 
-if __name__ == "__main__":
+def run_optuna():
+    output_dir = "output"
+
+    def objective(trial):
+        params = {
+            "click": trial.suggest_float("click", 0, 1.0),
+            "cart": trial.suggest_float("cart", 0, 1.0),
+            "order": trial.suggest_float("order", 0, 1.0),
+        }
+        score = main(cv=True, output_dir=output_dir, type_weight={0: params["click"], 1: params["cart"], 2: params["order"]})
+        return score
+
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=100)
+
+
+def run_train():
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto")
@@ -373,5 +374,11 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
     main(cv=True, output_dir=os.path.join(output_dir, "cv"))
-    wandb.finish()
-    main(cv=False, output_dir=output_dir)
+    if CFG.wandb:
+        wandb.finish()
+    if not CFG.cv_only:
+        main(cv=False, output_dir=output_dir)
+
+if __name__ == "__main__":
+    # run_optuna()
+    run_train()

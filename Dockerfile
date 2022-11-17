@@ -4,6 +4,6 @@ RUN apt update -q
 RUN apt install -qy make
 COPY requirements.txt .
 RUN pip install -r requirements.txt
-RUN pip install wandb jupyterlab
+RUN pip install wandb jupyterlab optuna
 
 WORKDIR /root/work/
