@@ -14,14 +14,16 @@ import pandas as pd
 
 class CFG:
     type_labels = {"clicks": 0, "carts": 1, "orders": 2}
-    type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
+    # type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
     # type_weight = {0: 1, 1: 6, 2: 3}
     top_n_clicks = 20
     top_n_carts_orders = 15
     top_n_buy2buy = 15
-    use_saved_models = False
-    wandb = True
-    cv_only = False
+    use_saved_models = True
+    use_saved_pred = True
+    wandb = False
+    cv_only = True
+    debug = False
 
 
 def load_test(cv: bool):
@@ -33,11 +35,20 @@ def load_test(cv: bool):
     for e, chunk_file in enumerate(glob.glob(file_path)):
         chunk = pd.read_parquet(chunk_file)
         dfs.append(chunk)
+        if CFG.debug:
+            break
     df = pd.concat(dfs).reset_index(drop=True).astype({"ts": "datetime64[ms]"})
+    if CFG.debug:
+        df = df.iloc[:100]
     return df
 
 
-def suggest_clicks(df, top_n_clicks, top_clicks):
+def dump_pickle(path, o):
+    with open(path, "wb") as f:
+        pickle.dump(o, f)
+
+
+def suggest_clicks(df, top_n_clicks, type_weight_multipliers):
     # USER HISTORY AIDS AND TYPES
     aids = df.aid.tolist()
     types = df.type.tolist()
@@ -48,7 +59,7 @@ def suggest_clicks(df, top_n_clicks, top_clicks):
         aids_temp = Counter()
         # RERANK BASED ON REPEAT ITEMS AND TYPE OF ITEMS
         for aid, w, t in zip(aids, weights, types):
-            aids_temp[aid] += w * CFG.type_weight_multipliers[t]
+            aids_temp[aid] += w * type_weight_multipliers[t]
         sorted_aids = [k for k, v in aids_temp.most_common(20)]
         return sorted_aids
     # USE "CLICKS" CO-VISITATION MATRIX
@@ -56,11 +67,10 @@ def suggest_clicks(df, top_n_clicks, top_clicks):
     # RERANK CANDIDATES
     top_aids2 = [aid2 for aid2, cnt in Counter(aids2).most_common(20) if aid2 not in unique_aids]
     result = unique_aids + top_aids2[: 20 - len(unique_aids)]
-    # USE TOP20 TEST CLICKS
-    return result + list(top_clicks)[: 20 - len(result)]
+    return result
 
 
-def suggest_buys(df, top_n_buy2buy, top_n_buys, top_orders):
+def suggest_buys(df, top_n_buy2buy, top_n_buys, type_weight_multipliers):
     # USER HISTORY AIDS AND TYPES
     aids = df.aid.tolist()
     types = df.type.tolist()
@@ -74,7 +84,7 @@ def suggest_buys(df, top_n_buy2buy, top_n_buys, top_orders):
         aids_temp = Counter()
         # RERANK BASED ON REPEAT ITEMS AND TYPE OF ITEMS
         for aid, w, t in zip(aids, weights, types):
-            aids_temp[aid] += w * CFG.type_weight_multipliers[t]
+            aids_temp[aid] += w * type_weight_multipliers[t]
         # RERANK CANDIDATES USING "BUY2BUY" CO-VISITATION MATRIX
         aids3 = list(itertools.chain(*[top_n_buy2buy[aid] for aid in unique_buys if aid in top_n_buy2buy]))
         for aid in aids3:
@@ -88,8 +98,7 @@ def suggest_buys(df, top_n_buy2buy, top_n_buys, top_orders):
     # RERANK CANDIDATES
     top_aids2 = [aid2 for aid2, cnt in Counter(aids2 + aids3).most_common(20) if aid2 not in unique_aids]
     result = unique_aids + top_aids2[: 20 - len(unique_aids)]
-    # USE TOP20 TEST ORDERS
-    return result + list(top_orders)[: 20 - len(result)]
+    return result
 
 
 def read_file(f):
@@ -147,14 +156,12 @@ def calc_top_buy2buy(files, CHUNK, output_dir, n):
         # CONVERT MATRIX TO DICTIONARY
         tmp = tmp.reset_index()
         tmp = tmp.sort_values(["aid_x", "wgt"], ascending=[True, False])
-        # SAVE TOP 40
         tmp = tmp.reset_index(drop=True)
         tmp["n"] = tmp.groupby("aid_x").aid_y.cumcount()
         tmp = tmp.loc[tmp.n < n].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_{n}_buy2buy_{PART}.pkl"), "wb") as f:
-            pickle.dump(df.to_dict(), f)
+        dump_pickle(os.path.join(output_dir, f"top_{n}_buy2buy_{PART}.pkl"), df.to_dict())
 
 
 def calc_top_clicks(files, CHUNK, output_dir, n):
@@ -210,8 +217,7 @@ def calc_top_clicks(files, CHUNK, output_dir, n):
         tmp = tmp.loc[tmp.n < n].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_{n}_clicks_{PART}.pkl"), "wb") as f:
-            pickle.dump(df.to_dict(), f)
+        dump_pickle(os.path.join(output_dir, f"top_{n}_clicks_{PART}.pkl"), df.to_dict())
 
 
 def calc_top_carts_orders(files, CHUNK, output_dir, n, type_weight):
@@ -267,8 +273,7 @@ def calc_top_carts_orders(files, CHUNK, output_dir, n, type_weight):
         tmp = tmp.loc[tmp.n < n].drop("n", axis=1)
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
-        with open(os.path.join(output_dir, f"top_{n}_carts_orders_{PART}.pkl"), "wb") as f:
-            pickle.dump(df.to_dict(), f)
+        dump_pickle(os.path.join(output_dir, f"top_{n}_carts_orders_{PART}.pkl"), df.to_dict())
 
 
 def main(cv: bool, output_dir: str):
@@ -302,23 +307,47 @@ def main(cv: bool, output_dir: str):
     # TOP CLICKS AND ORDERS IN TEST
     top_clicks = test_df.loc[test_df["type"] == "clicks", "aid"].value_counts().index.values[:20]
     top_orders = test_df.loc[test_df["type"] == "orders", "aid"].value_counts().index.values[:20]
-    pred_df_clicks = test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_clicks(x, top_n_clicks, top_clicks))
-    pred_df_buys = (
-        test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys, top_orders))
-    )
 
-    clicks_pred_df = pd.DataFrame(pred_df_clicks.add_suffix("_clicks"), columns=["labels"]).reset_index()
-    orders_pred_df = pd.DataFrame(pred_df_buys.add_suffix("_orders"), columns=["labels"]).reset_index()
-    carts_pred_df = pd.DataFrame(pred_df_buys.add_suffix("_carts"), columns=["labels"]).reset_index()
+    type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
 
+    # suggest clicks
+    if CFG.use_saved_pred:
+        pred_df_clicks = pickle.load(open(os.path.join(output_dir, "pred_df_clicks.pkl"), "rb"))
+    else:
+        pred_df_clicks = test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_clicks(x, top_n_clicks, type_weight_multipliers)).to_frame().rename(columns={0: "top_n"})
+        dump_pickle(os.path.join(output_dir, "pred_df_clicks.pkl"), pred_df_clicks)
+    pred_df_clicks["top"] = pred_df_clicks["top_n"].apply(lambda x: list(top_clicks)[:20-len(x)])
+    pred_df_clicks["labels"] = pred_df_clicks.apply(lambda x: x["top_n"] + x["top"], axis=1)
+    pred_df_clicks.index = pred_df_clicks.index.astype(str)
+    pred_df_clicks.index += "_clicks"
+    clicks_pred_df = pred_df_clicks
+
+    # suggest buys
+    if CFG.use_saved_pred:
+        pred_df_buys = pickle.load(open(os.path.join(output_dir, "pred_df_buys.pkl"), "rb"))
+    else:
+        pred_df_buys = (
+            test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys, type_weight_multipliers))
+        ).to_frame().rename(columns={0: "top_n"})
+        dump_pickle(os.path.join(output_dir, "pred_df_buys.pkl"), pred_df_buys)
+    pred_df_buys["top"] = pred_df_buys["top_n"].apply(lambda x: list(top_orders)[:20-len(x)])
+    pred_df_buys["labels"] = pred_df_buys.apply(lambda x: x["top_n"] + x["top"], axis=1)
+    pred_df_buys.index = pred_df_buys.index.astype(str)
+    orders_pred_df = pred_df_buys.copy()
+    carts_pred_df = pred_df_buys.copy()
+    orders_pred_df.index += "_orders"
+    carts_pred_df.index += "_carts"
+
+    # concat
     pred_df = pd.concat([clicks_pred_df, orders_pred_df, carts_pred_df])
-    pred_df.columns = ["session_type", "labels"]
+    pred_df = pred_df.reset_index()
+    pred_df = pred_df.rename(columns={"session": "session_type"})
     pred_df["labels"] = pred_df.labels.apply(lambda x: " ".join(map(str, x)))
     if cv:
         output_file_name = "validation_preds.csv"
     else:
         output_file_name = "submission.csv"
-    pred_df.to_csv(os.path.join(output_dir, output_file_name), index=False)
+    pred_df[["session_type", "labels"]].to_csv(os.path.join(output_dir, output_file_name), index=False)
 
     if cv:
         # FREE MEMORY
@@ -336,12 +365,17 @@ def main(cv: bool, output_dir: str):
             test_labels = pd.read_parquet("./input/otto-validation/test_labels.parquet")
             test_labels = test_labels.loc[test_labels["type"] == t]
             test_labels = test_labels.merge(sub, how="left", on=["session"])
+            test_labels = test_labels[test_labels["labels"].notnull()]
             test_labels["hits"] = test_labels.apply(lambda df: len(set(df.ground_truth).intersection(set(df.labels))), axis=1)
             test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
+            test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
             recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
             score += weights[t] * recall
+            dump_pickle(os.path.join(output_dir, f"test_labels_{t}.pkl"), test_labels)
+            print(f"{t} recall={recall}")
             if CFG.wandb:
                 wandb.log({f"{t} recall": recall})
+        print(f"total recall={score}")
         if CFG.wandb:
             wandb.log({f"total recall": score})
         return score
