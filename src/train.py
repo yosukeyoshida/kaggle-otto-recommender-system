@@ -330,12 +330,18 @@ def main(cv: bool, output_dir: str):
             test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys, type_weight_multipliers))
         ).to_frame().rename(columns={0: "top_n"})
         dump_pickle(os.path.join(output_dir, "pred_df_buys.pkl"), pred_df_buys)
-    pred_df_buys["top"] = pred_df_buys["top_n"].apply(lambda x: list(top_orders)[:20-len(x)])
-    pred_df_buys["labels"] = pred_df_buys.apply(lambda x: x["top_n"] + x["top"], axis=1)
-    pred_df_buys.index = pred_df_buys.index.astype(str)
+
+    # top_n + top
     orders_pred_df = pred_df_buys.copy()
     carts_pred_df = pred_df_buys.copy()
+    orders_pred_df["top"] = orders_pred_df["top_n"].apply(lambda x: list(top_orders)[:20-len(x)])
+    orders_pred_df["labels"] = orders_pred_df.apply(lambda x: x["top_n"] + x["top"], axis=1)
+    orders_pred_df.index = orders_pred_df.index.astype(str)
     orders_pred_df.index += "_orders"
+
+    carts_pred_df["top"] = carts_pred_df["top_n"].apply(lambda x: list(top_orders)[:20-len(x)])
+    carts_pred_df["labels"] = carts_pred_df.apply(lambda x: x["top_n"] + x["top"], axis=1)
+    carts_pred_df.index = carts_pred_df.index.astype(str)
     carts_pred_df.index += "_carts"
 
     # concat
