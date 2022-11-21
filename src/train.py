@@ -19,7 +19,7 @@ class CFG:
     top_n_buy2buy = 15
     use_saved_models = False
     use_saved_pred = False
-    wandb = False
+    wandb = True
     cv_only = True
     debug = False
 
@@ -283,8 +283,11 @@ def main(cv: bool, output_dir: str, **kwargs):
     CHUNK = int(np.ceil(len(files) / 6))
 
     if not CFG.use_saved_models:
+        # top_n_buys -> suggest_buys
         calc_top_carts_orders(files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight={0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917})
+        # top_n_buy2buy -> suggest_buys
         calc_top_buy2buy(files, CHUNK, output_dir, CFG.top_n_buy2buy)
+        # top_n_clicks ->  suggest_clicks
         calc_top_clicks(files, CHUNK, output_dir, CFG.top_n_clicks)
     else:
         print("use saved models!!!")
