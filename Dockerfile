@@ -5,5 +5,6 @@ RUN apt install -qy make
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 RUN pip install wandb jupyterlab optuna
+RUN pip install polars lightgbm
 
 WORKDIR /root/work/
