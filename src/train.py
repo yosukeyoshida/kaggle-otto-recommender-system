@@ -14,14 +14,12 @@ import pandas as pd
 
 class CFG:
     type_labels = {"clicks": 0, "carts": 1, "orders": 2}
-    # type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
-    # type_weight = {0: 1, 1: 6, 2: 3}
     top_n_clicks = 20
     top_n_carts_orders = 15
     top_n_buy2buy = 15
-    use_saved_models = True
-    use_saved_pred = True
-    wandb = False
+    use_saved_models = False
+    use_saved_pred = False
+    wandb = True
     cv_only = True
     debug = False
 
@@ -276,8 +274,7 @@ def calc_top_carts_orders(files, CHUNK, output_dir, n, type_weight):
         dump_pickle(os.path.join(output_dir, f"top_{n}_carts_orders_{PART}.pkl"), df.to_dict())
 
 
-def main(cv: bool, output_dir: str):
-    type_weight = {0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917}
+def main(cv: bool, output_dir: str, **kwargs):
     if cv:
         file_path = "./input/otto-validation/*_parquet/*"
     else:
@@ -286,8 +283,11 @@ def main(cv: bool, output_dir: str):
     CHUNK = int(np.ceil(len(files) / 6))
 
     if not CFG.use_saved_models:
-        calc_top_carts_orders(files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight)
+        # top_n_buys -> suggest_buys
+        calc_top_carts_orders(files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight={0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917})
+        # top_n_buy2buy -> suggest_buys
         calc_top_buy2buy(files, CHUNK, output_dir, CFG.top_n_buy2buy)
+        # top_n_clicks ->  suggest_clicks
         calc_top_clicks(files, CHUNK, output_dir, CFG.top_n_clicks)
     else:
         print("use saved models!!!")

@@ -2,5 +2,5 @@ lint:
 	flake8 --show-source .
 
 fmt:
-	isort *.py
+	isort ./src/*.py
 	black .
