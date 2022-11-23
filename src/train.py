@@ -19,8 +19,8 @@ class CFG:
     top_n_buy2buy = 15
     use_saved_models = False
     use_saved_pred = False
-    wandb = True
-    cv_only = True
+    wandb = False
+    cv_only = False
     debug = False
 
 
@@ -353,7 +353,9 @@ def main(cv: bool, output_dir: str, **kwargs):
         output_file_name = "validation_preds.csv"
     else:
         output_file_name = "submission.csv"
-    pred_df[["session_type", "labels"]].to_csv(os.path.join(output_dir, output_file_name), index=False)
+    pred_df["top_n"] = pred_df["top_n"].apply(lambda x: " ".join([str(v) for v in x]))
+    pred_df["top"] = pred_df["top"].apply(lambda x: " ".join([str(v) for v in x]))
+    pred_df[["session_type", "labels", "top_n", "top"]].to_csv(os.path.join(output_dir, output_file_name), index=False)
 
     if cv:
         # FREE MEMORY
@@ -413,7 +415,7 @@ def run_train():
         output_dir = "output"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-    main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    # main(cv=True, output_dir=os.path.join(output_dir, "cv"))
     if CFG.wandb:
         wandb.finish()
     if not CFG.cv_only:
