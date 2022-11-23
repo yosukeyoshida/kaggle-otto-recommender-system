@@ -19,7 +19,7 @@ class CFG:
     top_n_buy2buy = 15
     use_saved_models = False
     use_saved_pred = False
-    wandb = True
+    wandb = False
     cv_only = True
     debug = False
 
