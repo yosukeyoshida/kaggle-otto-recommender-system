@@ -353,6 +353,9 @@ def main(cv: bool, output_dir: str, **kwargs):
         output_file_name = "validation_preds.csv"
     else:
         output_file_name = "submission.csv"
+    pred_df["top_n"] = pred_df["top_n"].apply(lambda x: " ".join([str(v) for v in x]))
+    pred_df["top"] = pred_df["top"].apply(lambda x: " ".join([str(v) for v in x]))
+    pred_df[["session_type", "labels", "top_n", "top"]].to_csv(os.path.join(output_dir, f"full_columns_{output_file_name}"), index=False)
     pred_df[["session_type", "labels"]].to_csv(os.path.join(output_dir, output_file_name), index=False)
 
     if cv:
