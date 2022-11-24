@@ -1,10 +1,6 @@
 import pandas as pd
-import glob
 import polars as pl
 from lightgbm.sklearn import LGBMRanker
-
-class CFG:
-    debug = True
 
 
 def main():
