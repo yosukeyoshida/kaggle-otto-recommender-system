@@ -1,15 +1,16 @@
 import gc
-import wandb
 import glob
 import itertools
 import os
 import pickle
 from collections import Counter
-import optuna
 
 import cudf
 import numpy as np
+import optuna
 import pandas as pd
+
+import wandb
 
 
 class CFG:
@@ -284,7 +285,9 @@ def main(cv: bool, output_dir: str, **kwargs):
 
     if not CFG.use_saved_models:
         # top_n_buys -> suggest_buys
-        calc_top_carts_orders(files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight={0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917})
+        calc_top_carts_orders(
+            files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight={0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917}
+        )
         # top_n_buy2buy -> suggest_buys
         calc_top_buy2buy(files, CHUNK, output_dir, CFG.top_n_buy2buy)
         # top_n_clicks ->  suggest_clicks
@@ -314,9 +317,15 @@ def main(cv: bool, output_dir: str, **kwargs):
     if CFG.use_saved_pred:
         pred_df_clicks = pickle.load(open(os.path.join(output_dir, "pred_df_clicks.pkl"), "rb"))
     else:
-        pred_df_clicks = test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_clicks(x, top_n_clicks, type_weight_multipliers)).to_frame().rename(columns={0: "top_n"})
+        pred_df_clicks = (
+            test_df.sort_values(["session", "ts"])
+            .groupby(["session"])
+            .apply(lambda x: suggest_clicks(x, top_n_clicks, type_weight_multipliers))
+            .to_frame()
+            .rename(columns={0: "top_n"})
+        )
         dump_pickle(os.path.join(output_dir, "pred_df_clicks.pkl"), pred_df_clicks)
-    pred_df_clicks["top"] = pred_df_clicks["top_n"].apply(lambda x: list(top_clicks)[:20-len(x)])
+    pred_df_clicks["top"] = pred_df_clicks["top_n"].apply(lambda x: list(top_clicks)[: 20 - len(x)])
     pred_df_clicks["labels"] = pred_df_clicks.apply(lambda x: x["top_n"] + x["top"], axis=1)
     pred_df_clicks.index = pred_df_clicks.index.astype(str)
     pred_df_clicks.index += "_clicks"
@@ -327,19 +336,25 @@ def main(cv: bool, output_dir: str, **kwargs):
         pred_df_buys = pickle.load(open(os.path.join(output_dir, "pred_df_buys.pkl"), "rb"))
     else:
         pred_df_buys = (
-            test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys, type_weight_multipliers))
-        ).to_frame().rename(columns={0: "top_n"})
+            (
+                test_df.sort_values(["session", "ts"])
+                .groupby(["session"])
+                .apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys, type_weight_multipliers))
+            )
+            .to_frame()
+            .rename(columns={0: "top_n"})
+        )
         dump_pickle(os.path.join(output_dir, "pred_df_buys.pkl"), pred_df_buys)
 
     # top_n + top
     orders_pred_df = pred_df_buys.copy()
     carts_pred_df = pred_df_buys.copy()
-    orders_pred_df["top"] = orders_pred_df["top_n"].apply(lambda x: list(top_orders)[:20-len(x)])
+    orders_pred_df["top"] = orders_pred_df["top_n"].apply(lambda x: list(top_orders)[: 20 - len(x)])
     orders_pred_df["labels"] = orders_pred_df.apply(lambda x: x["top_n"] + x["top"], axis=1)
     orders_pred_df.index = orders_pred_df.index.astype(str)
     orders_pred_df.index += "_orders"
 
-    carts_pred_df["top"] = carts_pred_df["top_n"].apply(lambda x: list(top_orders)[:20-len(x)])
+    carts_pred_df["top"] = carts_pred_df["top_n"].apply(lambda x: list(top_orders)[: 20 - len(x)])
     carts_pred_df["labels"] = carts_pred_df.apply(lambda x: x["top_n"] + x["top"], axis=1)
     carts_pred_df.index = carts_pred_df.index.astype(str)
     carts_pred_df.index += "_carts"
@@ -389,6 +404,7 @@ def main(cv: bool, output_dir: str, **kwargs):
             wandb.log({f"total recall": score})
         return score
 
+
 def run_optuna():
     output_dir = "output"
 
@@ -421,6 +437,7 @@ def run_train():
         wandb.finish()
     if not CFG.cv_only:
         main(cv=False, output_dir=output_dir)
+
 
 if __name__ == "__main__":
     # run_optuna()

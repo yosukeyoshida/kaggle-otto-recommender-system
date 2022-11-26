@@ -54,8 +54,7 @@ def main():
     test["action_num_reverse_chrono"] = test.groupby("session").cumcount(ascending=False)
     session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
     test = test.merge(session_length, on="session")
-    linear_interpolation = 0.1 + ((1 - 0.1) / (test["session_length"] - 1)) * (
-                test["session_length"] - test["action_num_reverse_chrono"] - 1)
+    linear_interpolation = 0.1 + ((1 - 0.1) / (test["session_length"] - 1)) * (test["session_length"] - test["action_num_reverse_chrono"] - 1)
     test["log_recency_score"] = 2 ** linear_interpolation - 1
     test["log_recency_score"].fillna(1, inplace=True)
     type_weights = {0: 1, 1: 6, 2: 3}
@@ -100,6 +99,7 @@ def main():
     #     # if CFG.wandb:
     #     #     wandb.log({f"{t} recall": recall})
     # print(f"total recall={score}")
+
 
 if __name__ == "__main__":
     main()
