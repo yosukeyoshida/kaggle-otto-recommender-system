@@ -14,15 +14,17 @@ import wandb
 
 
 class CFG:
-    type_labels = {"clicks": 0, "carts": 1, "orders": 2}
     top_n_clicks = 20
     top_n_carts_orders = 15
     top_n_buy2buy = 15
     use_saved_models = False
     use_saved_pred = False
-    wandb = False
-    cv_only = True
+    wandb = True
+    cv_only = False
     debug = False
+    LABEL_TYPE_CLICKS = "clicks"
+    LABEL_TYPE_CARTS = "carts"
+    LABEL_TYPE_ORDERS = "orders"
 
 
 def load_test(cv: bool):
@@ -100,10 +102,45 @@ def suggest_buys(df, top_n_buy2buy, top_n_buys, type_weight_multipliers):
     return result
 
 
+def suggest_carts(df, top_n_buys, top_n_clicks, type_weight_multipliers):
+    # User history aids and types:vs
+    aids = df.aid.tolist()
+    types = df.type.tolist()
+
+    # UNIQUE AIDS AND UNIQUE BUYS
+    unique_aids = list(dict.fromkeys(aids[::-1]))
+    df = df.loc[(df["type"] == CFG.LABEL_TYPE_CLICKS) | (df["type"] == CFG.LABEL_TYPE_CARTS)]
+    unique_buys = list(dict.fromkeys(df.aid.tolist()[::-1]))
+
+    # Rerank candidates using weights
+    if len(unique_aids) >= 20:
+        weights = np.logspace(0.5, 1, len(aids), base=2, endpoint=True) - 1
+        aids_temp = Counter()
+
+        # Rerank based on repeat items and types of items
+        for aid, w, t in zip(aids, weights, types):
+            aids_temp[aid] += w * type_weight_multipliers[t]
+
+        # Rerank candidates using"top_20_carts" co-visitation matrix
+        aids2 = list(itertools.chain(*[top_n_buys[aid] for aid in unique_buys if aid in top_n_buys]))
+        for aid in aids2:
+            aids_temp[aid] += 0.1
+        sorted_aids = [k for k, v in aids_temp.most_common(20)]
+        return sorted_aids
+
+    # Use "cart order" and "clicks" co-visitation matrices
+    aids1 = list(itertools.chain(*[top_n_clicks[aid] for aid in unique_aids if aid in top_n_clicks]))
+    aids2 = list(itertools.chain(*[top_n_buys[aid] for aid in unique_aids if aid in top_n_buys]))
+
+    # RERANK CANDIDATES
+    top_aids2 = [aid2 for aid2, cnt in Counter(aids1 + aids2).most_common(20) if aid2 not in unique_aids]
+    result = unique_aids + top_aids2[: 20 - len(unique_aids)]
+    return result
+
+
 def read_file(f):
     df = cudf.read_parquet(f)
     df.ts = (df.ts / 1000).astype("int32")
-    df["type"] = df["type"].map(CFG.type_labels).astype("int8")
     return df
 
 
@@ -123,7 +160,7 @@ def calc_top_buy2buy(files, CHUNK, output_dir, n):
             for k in range(a, b):
                 # READ FILE
                 df = read_file(files[k])
-                df = df.loc[df["type"].isin([1, 2])]  # ONLY WANT CARTS AND ORDERS
+                df = df.loc[df["type"].isin([CFG.LABEL_TYPE_CARTS, CFG.LABEL_TYPE_ORDERS])]
                 df = df.sort_values(["session", "ts"], ascending=[True, False])
                 # USE TAIL OF SESSION
                 df = df.reset_index(drop=True)
@@ -286,7 +323,7 @@ def main(cv: bool, output_dir: str, **kwargs):
     if not CFG.use_saved_models:
         # top_n_buys -> suggest_buys
         calc_top_carts_orders(
-            files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight={0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917}
+            files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight={CFG.LABEL_TYPE_CLICKS: 0.07197733833680556, CFG.LABEL_TYPE_CARTS: 0.708280136807459, CFG.LABEL_TYPE_ORDERS: 0.05318170583899917}
         )
         # top_n_buy2buy -> suggest_buys
         calc_top_buy2buy(files, CHUNK, output_dir, CFG.top_n_buy2buy)
@@ -310,10 +347,11 @@ def main(cv: bool, output_dir: str, **kwargs):
     # TOP CLICKS AND ORDERS IN TEST
     top_clicks = test_df.loc[test_df["type"] == "clicks", "aid"].value_counts().index.values[:20]
     top_orders = test_df.loc[test_df["type"] == "orders", "aid"].value_counts().index.values[:20]
+    top_carts = test_df.loc[test_df["type"] == "carts", "aid"].value_counts().index.values[:20]
 
     type_weight_multipliers = {"clicks": 1, "carts": 6, "orders": 3}
 
-    # suggest clicks
+    # clicks
     if CFG.use_saved_pred:
         pred_df_clicks = pickle.load(open(os.path.join(output_dir, "pred_df_clicks.pkl"), "rb"))
     else:
@@ -329,13 +367,12 @@ def main(cv: bool, output_dir: str, **kwargs):
     pred_df_clicks["labels"] = pred_df_clicks.apply(lambda x: x["top_n"] + x["top"], axis=1)
     pred_df_clicks.index = pred_df_clicks.index.astype(str)
     pred_df_clicks.index += "_clicks"
-    clicks_pred_df = pred_df_clicks
 
-    # suggest buys
+    # orders
     if CFG.use_saved_pred:
-        pred_df_buys = pickle.load(open(os.path.join(output_dir, "pred_df_buys.pkl"), "rb"))
+        pred_df_orders = pickle.load(open(os.path.join(output_dir, "pred_df_orders.pkl"), "rb"))
     else:
-        pred_df_buys = (
+        pred_df_orders = (
             (
                 test_df.sort_values(["session", "ts"])
                 .groupby(["session"])
@@ -344,23 +381,32 @@ def main(cv: bool, output_dir: str, **kwargs):
             .to_frame()
             .rename(columns={0: "top_n"})
         )
-        dump_pickle(os.path.join(output_dir, "pred_df_buys.pkl"), pred_df_buys)
+        dump_pickle(os.path.join(output_dir, "pred_df_orders.pkl"), pred_df_orders)
 
-    # top_n + top
-    orders_pred_df = pred_df_buys.copy()
-    carts_pred_df = pred_df_buys.copy()
-    orders_pred_df["top"] = orders_pred_df["top_n"].apply(lambda x: list(top_orders)[: 20 - len(x)])
-    orders_pred_df["labels"] = orders_pred_df.apply(lambda x: x["top_n"] + x["top"], axis=1)
-    orders_pred_df.index = orders_pred_df.index.astype(str)
-    orders_pred_df.index += "_orders"
+    pred_df_orders["top"] = pred_df_orders["top_n"].apply(lambda x: list(top_orders)[: 20 - len(x)])
+    pred_df_orders["labels"] = pred_df_orders.apply(lambda x: x["top_n"] + x["top"], axis=1)
+    pred_df_orders.index = pred_df_orders.index.astype(str)
+    pred_df_orders.index += "_orders"
 
-    carts_pred_df["top"] = carts_pred_df["top_n"].apply(lambda x: list(top_orders)[: 20 - len(x)])
-    carts_pred_df["labels"] = carts_pred_df.apply(lambda x: x["top_n"] + x["top"], axis=1)
-    carts_pred_df.index = carts_pred_df.index.astype(str)
-    carts_pred_df.index += "_carts"
+    # carts
+    if CFG.use_saved_pred:
+        pred_df_carts = pickle.load(open(os.path.join(output_dir, "pred_df_carts.pkl"), "rb"))
+    else:
+        pred_df_carts = (
+            test_df.sort_values(["session", "ts"])
+            .groupby(["session"])
+            .apply(lambda x: suggest_carts(x, top_n_buys, top_n_clicks, type_weight_multipliers))
+            .to_frame()
+            .rename(columns={0: "top_n"})
+        )
+
+    pred_df_carts["top"] = pred_df_carts["top_n"].apply(lambda x: list(top_carts)[: 20 - len(x)])
+    pred_df_carts["labels"] = pred_df_carts.apply(lambda x: x["top_n"] + x["top"], axis=1)
+    pred_df_carts.index = pred_df_carts.index.astype(str)
+    pred_df_carts.index += "_carts"
 
     # concat
-    pred_df = pd.concat([clicks_pred_df, orders_pred_df, carts_pred_df])
+    pred_df = pd.concat([pred_df_clicks, pred_df_orders, pred_df_carts])
     pred_df = pred_df.reset_index()
     pred_df = pred_df.rename(columns={"session": "session_type"})
     pred_df["labels"] = pred_df.labels.apply(lambda x: " ".join(map(str, x)))
@@ -375,8 +421,7 @@ def main(cv: bool, output_dir: str, **kwargs):
 
     if cv:
         # FREE MEMORY
-        del pred_df_clicks, pred_df_buys, clicks_pred_df, orders_pred_df, carts_pred_df
-        del top_n_clicks, top_n_buy2buy, top_n_buys, top_clicks, top_orders, test_df
+        del pred_df_clicks, pred_df_orders, pred_df_carts, top_n_clicks, top_n_buy2buy, top_n_buys, top_clicks, top_orders, test_df
         _ = gc.collect()
 
         # COMPUTE METRIC
