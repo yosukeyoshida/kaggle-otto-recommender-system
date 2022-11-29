@@ -1,19 +1,38 @@
 from collections import defaultdict
+import glob
+import pickle
 
 import numpy as np
 import pandas as pd
-import polars as pl
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
 
 
-def main():
-    train = pl.read_parquet("./input/otto-full-optimized-memory-footprint/train.parquet")
-    test = pl.read_parquet("./input/otto-full-optimized-memory-footprint/test.parquet")
+def dump_pickle(path, o):
+    with open(path, "wb") as f:
+        pickle.dump(o, f)
 
-    sentences_df = pl.concat([train, test]).groupby("session").agg(pl.col("aid").alias("sentence"))
 
-    sentences = sentences_df["sentence"].to_list()
+def read_files(path):
+    dfs = []
+    for file in glob.glob(path):
+        df = pd.read_parquet(file)
+        dfs.append(df)
+    return pd.concat(dfs).reset_index(drop=True)
+
+
+def main(cv):
+    if cv:
+        train_file_path = "./input/otto-validation/*_parquet/*"
+        test_file_path = "./input/otto-validation/test_parquet/*"
+    else:
+        train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+        test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+    train = read_files(train_file_path)
+    train["sentence"] = train.groupby("session")["aid"].apply(list)
+    test = read_files(test_file_path)
+
+    sentences = train["sentence"].to_list()
 
     w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4)
 
@@ -25,9 +44,8 @@ def main():
 
     index.build(10)
 
-    session_types = ["clicks", "carts", "orders"]
-    test_session_AIDs = test.to_pandas().reset_index(drop=True).groupby("session")["aid"].apply(list)
-    test_session_types = test.to_pandas().reset_index(drop=True).groupby("session")["type"].apply(list)
+    test_session_AIDs = test.groupby("session")["aid"].apply(list)
+    test_session_types = test.groupby("session")["type"].apply(list)
 
     labels = []
 
@@ -54,20 +72,13 @@ def main():
 
             labels.append((AIDs + nns)[:20])
 
-    labels_as_strings = [" ".join([str(l) for l in lls]) for lls in labels]
-
-    predictions = pd.DataFrame(data={"session_type": test_session_AIDs.index, "labels": labels_as_strings})
-
-    prediction_dfs = []
-
-    for st in session_types:
-        modified_predictions = predictions.copy()
-        modified_predictions.session_type = modified_predictions.session_type.astype("str") + f"_{st}"
-        prediction_dfs.append(modified_predictions)
-
-    submission = pd.concat(prediction_dfs).reset_index(drop=True)
-    submission.to_csv("submission.csv", index=False)
+    predictions = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
+    if cv:
+        dump_pickle("output/word2vec/predictions_cv.pkl", predictions)
+    else:
+        dump_pickle("output/word2vec/predictions.pkl", predictions)
 
 
 if __name__ == "__main__":
-    main()
+    main(cv=True)
+    main(cv=False)
