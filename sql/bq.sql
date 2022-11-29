@@ -1,6 +1,6 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221129/train_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221129_2/train_*.parquet',
 --     uri='gs://kaggle-yosuke/lgbm_dataset_test/lgbm_test_*.parquet',
     format='PARQUET',
     overwrite=true
@@ -102,7 +102,8 @@ AS WITH session_stats AS (
         MAX(type_weighted_log_recency_score) AS max_type_weighted_log_recency_score,
         NULL AS covisit_clicks_candidate_num,
         NULL AS covisit_carts_candidate_num,
-        NULL AS covisit_orders_candidate_num
+        NULL AS covisit_orders_candidate_num,
+        NULL AS w2v_candidate_num
     FROM aid_list2
     GROUP BY session, aid, session_interaction_length, clicks_cnt, carts_cnt, orders_cnt, this_aid_clicks_cnt, this_aid_carts_cnt, this_aid_orders_cnt
 ), covisit AS (
@@ -134,6 +135,7 @@ AS WITH session_stats AS (
         MAX(CASE WHEN type = 'clicks' THEN covisit_type_candidate_num ELSE NULL END) AS covisit_clicks_candidate_num,
         MAX(CASE WHEN type = 'carts' THEN covisit_type_candidate_num ELSE NULL END) AS covisit_carts_candidate_num,
         MAX(CASE WHEN type = 'orders' THEN covisit_type_candidate_num ELSE NULL END) AS covisit_orders_candidate_num,
+        NULL AS w2v_candidate_num
     FROM (
         SELECT
             t.session,
@@ -150,10 +152,58 @@ AS WITH session_stats AS (
         WHERE t.aid is not NULL
     ) t
     GROUP BY session, aid, session_interaction_length, clicks_cnt, carts_cnt, orders_cnt
+), w2v AS (
+    SELECT
+        session,
+        aid,
+        session_interaction_length,
+        clicks_cnt,
+        carts_cnt,
+        orders_cnt,
+        NULL AS this_aid_clicks_cnt,
+        NULL AS this_aid_carts_cnt,
+        NULL AS this_aid_orders_cnt,
+        NULL AS avg_action_num_reverse_chrono,
+        NULL AS min_action_num_reverse_chrono,
+        NULL AS max_action_num_reverse_chrono,
+        NULL AS avg_sec_since_session_start,
+        NULL AS min_sec_since_session_start,
+        NULL AS max_sec_since_session_start,
+        NULL AS avg_sec_to_session_end,
+        NULL AS min_sec_to_session_end,
+        NULL AS max_sec_to_session_end,
+        NULL AS avg_log_recency_score,
+        NULL AS min_log_recency_score,
+        NULL AS max_log_recency_score,
+        NULL AS avg_type_weighted_log_recency_score,
+        NULL AS min_type_weighted_log_recency_score,
+        NULL AS max_type_weighted_log_recency_score,
+        NULL AS covisit_clicks_candidate_num,
+        NULL AS covisit_carts_candidate_num,
+        NULL AS covisit_orders_candidate_num,
+        MAX(w2v_candidate_num) AS w2v_candidate_num
+    FROM (
+        SELECT
+            t.session,
+            t.aid,
+            ROW_NUMBER() OVER (PARTITION BY t.session) AS w2v_candidate_num,
+            ss.clicks_cnt,
+            ss.carts_cnt,
+            ss.orders_cnt,
+            ss.session_interaction_length
+        FROM `kaggle-352109.otto.w2v` t
+--         FROM `kaggle-352109.otto.covisit_test` t
+        INNER JOIN session_stats ss ON ss.session = t.session
+        WHERE t.aid is not NULL
+    ) t
+    GROUP BY session, aid, session_interaction_length, clicks_cnt, carts_cnt, orders_cnt
+
 ), union_all AS (
     SELECT * FROM aid_list3 al
     UNION ALL
     SELECT * FROM covisit
+    UNION ALL
+    SELECT * FROM w2v
 )
 
 SELECT
@@ -184,7 +234,8 @@ SELECT
     MAX(max_type_weighted_log_recency_score) AS max_type_weighted_log_recency_score,
     MAX(covisit_clicks_candidate_num) AS covisit_clicks_candidate_num,
     MAX(covisit_carts_candidate_num) AS covisit_carts_candidate_num,
-    MAX(covisit_orders_candidate_num) AS covisit_orders_candidate_num
+    MAX(covisit_orders_candidate_num) AS covisit_orders_candidate_num,
+    MAX(w2v_candidate_num) AS w2v_candidate_num
 FROM union_all
 GROUP BY session, aid
 ORDER BY session, aid;

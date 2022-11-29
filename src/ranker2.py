@@ -28,7 +28,9 @@ def read_files(path):
     'max_type_weighted_log_recency_score',
     'covisit_clicks_candidate_num',
     'covisit_carts_candidate_num',
-    'covisit_orders_candidate_num']
+    'covisit_orders_candidate_num',
+    'w2v_candidate_num',
+    ]
 
     for file in glob.glob(path):
         df = pd.read_parquet(file)
