@@ -8,10 +8,34 @@ from lightgbm.sklearn import LGBMRanker
 def read_files(path):
     dfs = []
     dtypes = {'session': 'int32', 'aid': 'int32', 'session_interaction_length': 'int16', 'clicks_cnt': 'int16', 'orders_cnt': 'int16'}
+    float_cols = ['this_aid_clicks_cnt',
+    'this_aid_carts_cnt',
+    'this_aid_orders_cnt',
+    'avg_action_num_reverse_chrono',
+    'min_action_num_reverse_chrono',
+    'max_action_num_reverse_chrono',
+    'avg_sec_since_session_start',
+    'min_sec_since_session_start',
+    'max_sec_since_session_start',
+    'avg_sec_to_session_end',
+    'min_sec_to_session_end',
+    'max_sec_to_session_end',
+    'avg_log_recency_score',
+    'min_log_recency_score',
+    'max_log_recency_score',
+    'avg_type_weighted_log_recency_score',
+    'min_type_weighted_log_recency_score',
+    'max_type_weighted_log_recency_score',
+    'covisit_clicks_candidate_num',
+    'covisit_carts_candidate_num',
+    'covisit_orders_candidate_num']
+
     for file in glob.glob(path):
         df = pd.read_parquet(file)
         for col, dtype in dtypes.items():
             df[col] = df[col].astype(dtype)
+        for col in float_cols:
+            df[col] = df[col].astype('float16')
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
 
@@ -38,6 +62,7 @@ def main():
         session_length = train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_train = session_length["session_length"].values
         train = train.merge(session_length, on="session")
+        train["session_length"] = train["session_length"].astype('int16')
         del session_length
         gc.collect()
 
@@ -48,23 +73,26 @@ def main():
         gc.collect()
         train["gt"].fillna(0, inplace=True)
         train["gt"] = train["gt"].astype('int8')
+        print(train.dtypes)
 
         ranker = LGBMRanker(
             objective="lambdarank",
             metric="ndcg",
             boosting_type="dart",
-            n_estimators=20,
+            n_estimators=500,
             importance_type="gain",
         )
         target = "gt"
         feature_cols = train.drop(columns=[target, "session", "type"]).columns.tolist()
 
         # train
+        print("train start")
         ranker = ranker.fit(
             train[feature_cols],
             train[target],
             group=session_lengths_train,
         )
+        print("train finish")
         dump_pickle(f"output/lgbm/ranker_{type}.pkl", ranker)
         del train
         gc.collect()
@@ -73,14 +101,13 @@ def main():
         test = test.drop(columns=["session_length"])
         session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         test = test.merge(session_length, on="session")
-        for type in ["clicks", "carts", "orders"]:
+        for _type in ["clicks", "carts", "orders"]:
             scores = ranker.predict(test[feature_cols])
             test["score"] = scores
             test_predictions = test.sort_values(["session", "score"]).groupby("session").tail(20)
             test_predictions = test_predictions.groupby("session")["aid"].apply(list)
             test_predictions = test_predictions.to_frame().reset_index()
-            dump_pickle(f"output/lgbm/test_predictions_{type}.pkl", test_predictions)
-            print(f"type={type} finish")
+            dump_pickle(f"output/lgbm/test_predictions_{_type}.pkl", test_predictions)
         del test, ranker
         gc.collect()
         print(f"type={type} finish")
