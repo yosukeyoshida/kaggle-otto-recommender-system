@@ -312,10 +312,11 @@ def main(cv: bool, output_dir: str, **kwargs):
 
 
 def run_train():
-    output_dir = "output"
+    output_dir = "output/covisit"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-    main(cv=False, output_dir=os.path.join(output_dir, "cv"))
+    main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    main(cv=False, output_dir=output_dir)
 
 
 if __name__ == "__main__":
