@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221201_4/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/lgbm_test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221201_6/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221201_6/lgbm_test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -282,8 +282,8 @@ SELECT
     sa.covisit_carts_candidate_num,
     sa.covisit_orders_candidate_num,
     sa.w2v_candidate_num,
-    r.clicks_rank,
-    r.carts_rank,
-    r.orders_rank
+    COALESCE(r.clicks_rank, 1000000) AS clicks_rank,
+    COALESCE(r.carts_rank, 1000000) AS carts_rank,
+    COALESCE(r.orders_rank, 1000000) AS orders_rank
 FROM group_by_session_aid sa
 LEFT JOIN ranking r ON r.aid = sa.aid

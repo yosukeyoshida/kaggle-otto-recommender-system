@@ -8,7 +8,7 @@ from lightgbm.sklearn import LGBMRanker
 
 def read_files(path):
     dfs = []
-    dtypes = {"session": "int32", "aid": "int32", "session_interaction_length": "int16", "clicks_cnt": "int16", "orders_cnt": "int16"}
+    dtypes = {"session": "int32", "aid": "int32", "session_interaction_length": "int16", "clicks_cnt": "int16", "orders_cnt": "int16", "clicks_rank": "int32", "carts_rank": "int32", "orders_rank": "int32"}
     float_cols = [
         "this_aid_clicks_cnt",
         "this_aid_carts_cnt",
@@ -62,7 +62,6 @@ def dump_pickle(path, o):
 def main():
     for type in ["clicks", "carts", "orders"]:
         train = read_files("./input/lgbm_dataset/*")
-        train = train.drop(columns=["session_length"])
         train_labels_all = read_train_labels()
         session_length = train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_train = session_length["session_length"].values
@@ -103,7 +102,6 @@ def main():
         gc.collect()
 
         test = read_files("./input/lgbm_dataset_test/*")
-        test = test.drop(columns=["session_length"])
         session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         test = test.merge(session_length, on="session")
         for _type in ["clicks", "carts", "orders"]:
