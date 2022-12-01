@@ -290,11 +290,7 @@ def main(cv: bool, output_dir: str, **kwargs):
         pred_df_buys = pickle.load(open(os.path.join(output_dir, "pred_df_buys.pkl"), "rb"))
     else:
         pred_df_buys = (
-            (
-                test_df.sort_values(["session", "ts"])
-                .groupby(["session"])
-                .apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys))
-            )
+            (test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys)))
             .to_frame()
             .rename(columns={0: "labels"})
         )

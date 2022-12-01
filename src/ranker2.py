@@ -1,41 +1,45 @@
-import pandas as pd
 import gc
-import pickle
 import glob
+import pickle
+
+import pandas as pd
 from lightgbm.sklearn import LGBMRanker
 
 
 def read_files(path):
     dfs = []
-    dtypes = {'session': 'int32', 'aid': 'int32', 'session_interaction_length': 'int16', 'clicks_cnt': 'int16', 'orders_cnt': 'int16'}
-    float_cols = ['this_aid_clicks_cnt',
-    'this_aid_carts_cnt',
-    'this_aid_orders_cnt',
-    'avg_action_num_reverse_chrono',
-    'min_action_num_reverse_chrono',
-    'max_action_num_reverse_chrono',
-    'avg_sec_since_session_start',
-    'min_sec_since_session_start',
-    'max_sec_since_session_start',
-    'avg_sec_to_session_end',
-    'min_sec_to_session_end',
-    'max_sec_to_session_end',
-    'avg_log_recency_score',
-    'min_log_recency_score',
-    'max_log_recency_score',
-    'avg_type_weighted_log_recency_score',
-    'min_type_weighted_log_recency_score',
-    'max_type_weighted_log_recency_score',
-    'covisit_clicks_candidate_num',
-    'covisit_carts_candidate_num',
-    'covisit_orders_candidate_num']
+    dtypes = {"session": "int32", "aid": "int32", "session_interaction_length": "int16", "clicks_cnt": "int16", "orders_cnt": "int16"}
+    float_cols = [
+        "this_aid_clicks_cnt",
+        "this_aid_carts_cnt",
+        "this_aid_orders_cnt",
+        "avg_action_num_reverse_chrono",
+        "min_action_num_reverse_chrono",
+        "max_action_num_reverse_chrono",
+        "avg_sec_since_session_start",
+        "min_sec_since_session_start",
+        "max_sec_since_session_start",
+        "avg_sec_to_session_end",
+        "min_sec_to_session_end",
+        "max_sec_to_session_end",
+        "avg_log_recency_score",
+        "min_log_recency_score",
+        "max_log_recency_score",
+        "avg_type_weighted_log_recency_score",
+        "min_type_weighted_log_recency_score",
+        "max_type_weighted_log_recency_score",
+        "covisit_clicks_candidate_num",
+        "covisit_carts_candidate_num",
+        "covisit_orders_candidate_num",
+        "w2v_candidate_num",
+    ]
 
     for file in glob.glob(path):
         df = pd.read_parquet(file)
         for col, dtype in dtypes.items():
             df[col] = df[col].astype(dtype)
         for col in float_cols:
-            df[col] = df[col].astype('float16')
+            df[col] = df[col].astype("float16")
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
 
@@ -45,14 +49,15 @@ def read_train_labels():
     train_labels = train_labels.explode("ground_truth")
     train_labels["aid"] = train_labels["ground_truth"]
     train_labels = train_labels[["session", "type", "aid"]]
-    train_labels["aid"] = train_labels["aid"].astype('int32')
-    train_labels["session"] = train_labels["session"].astype('int32')
+    train_labels["aid"] = train_labels["aid"].astype("int32")
+    train_labels["session"] = train_labels["session"].astype("int32")
     return train_labels
 
 
 def dump_pickle(path, o):
     with open(path, "wb") as f:
         pickle.dump(o, f)
+
 
 def main():
     for type in ["clicks", "carts", "orders"]:
@@ -62,7 +67,7 @@ def main():
         session_length = train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_train = session_length["session_length"].values
         train = train.merge(session_length, on="session")
-        train["session_length"] = train["session_length"].astype('int16')
+        train["session_length"] = train["session_length"].astype("int16")
         del session_length
         gc.collect()
 
@@ -72,7 +77,7 @@ def main():
         del train_labels
         gc.collect()
         train["gt"].fillna(0, inplace=True)
-        train["gt"] = train["gt"].astype('int8')
+        train["gt"] = train["gt"].astype("int8")
         print(train.dtypes)
 
         ranker = LGBMRanker(
