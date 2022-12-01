@@ -62,6 +62,15 @@ def suggest_buys(df, top_n_buy2buy, top_n_buys):
     return top_aids2
 
 
+def suggest_carts(df, top_n_buys, top_n_clicks):
+    aids = df.aid.tolist()
+    unique_aids = list(dict.fromkeys(aids[::-1]))
+    aids1 = list(itertools.chain(*[top_n_clicks[aid] for aid in unique_aids if aid in top_n_clicks]))
+    aids2 = list(itertools.chain(*[top_n_buys[aid] for aid in unique_aids if aid in top_n_buys]))
+    top_aids2 = [aid2 for aid2, cnt in Counter(aids1 + aids2).most_common(20) if aid2 not in unique_aids]
+    return top_aids2
+
+
 def read_file(f):
     df = cudf.read_parquet(f)
     df.ts = (df.ts / 1000).astype("int32")
@@ -285,6 +294,20 @@ def main(cv: bool, output_dir: str, **kwargs):
     pred_df_clicks["type"] = "clicks"
     clicks_pred_df = pred_df_clicks
 
+    # suggest carts
+    if CFG.use_saved_pred:
+        carts_pred_df = pickle.load(open(os.path.join(output_dir, "pred_df_carts.pkl"), "rb"))
+    else:
+        carts_pred_df = (
+            test_df.sort_values(["session", "ts"])
+                .groupby(["session"])
+                .apply(lambda x: suggest_carts(x, top_n_buys, top_n_clicks))
+                .to_frame()
+                .rename(columns={0: "labels"})
+        )
+    carts_pred_df.index = carts_pred_df.index.astype(str)
+    pred_df_clicks["type"] = "carts"
+
     # suggest buys
     if CFG.use_saved_pred:
         pred_df_buys = pickle.load(open(os.path.join(output_dir, "pred_df_buys.pkl"), "rb"))
@@ -301,10 +324,6 @@ def main(cv: bool, output_dir: str, **kwargs):
     orders_pred_df.index = orders_pred_df.index.astype(str)
     orders_pred_df["type"] = "orders"
 
-    carts_pred_df = pred_df_buys.copy()
-    carts_pred_df.index = carts_pred_df.index.astype(str)
-    carts_pred_df["type"] = "carts"
-
     # concat
     pred_df = pd.concat([clicks_pred_df, orders_pred_df, carts_pred_df])
     pred_df = pred_df.reset_index()
@@ -312,10 +331,11 @@ def main(cv: bool, output_dir: str, **kwargs):
 
 
 def run_train():
-    output_dir = "output"
+    output_dir = "output/covisit"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-    main(cv=False, output_dir=os.path.join(output_dir, "cv"))
+    main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    main(cv=False, output_dir=output_dir)
 
 
 if __name__ == "__main__":

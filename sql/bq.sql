@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221129_2/train_*.parquet',
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/lgbm_test_*.parquet',
+--     uri='gs://kaggle-yosuke/lgbm_dataset/20221201/train_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset_test/20221201/lgbm_test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -14,8 +14,8 @@ AS WITH session_stats AS (
         SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS carts_cnt,
         SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS orders_cnt,
         COUNT(*) AS session_interaction_length
-    FROM `kaggle-352109.otto.otto-validation-test`
---     FROM `kaggle-352109.otto.test`
+--     FROM `kaggle-352109.otto.otto-validation-test`
+    FROM `kaggle-352109.otto.test`
     GROUP BY session
 ), aid_list AS (
     SELECT
@@ -146,8 +146,8 @@ AS WITH session_stats AS (
             ss.carts_cnt,
             ss.orders_cnt,
             ss.session_interaction_length
-        FROM `kaggle-352109.otto.covisit` t
---         FROM `kaggle-352109.otto.covisit_test` t
+--         FROM `kaggle-352109.otto.covisit` t
+        FROM `kaggle-352109.otto.covisit_test` t
         INNER JOIN session_stats ss ON ss.session = t.session
         WHERE t.aid is not NULL
     ) t
@@ -191,8 +191,8 @@ AS WITH session_stats AS (
             ss.carts_cnt,
             ss.orders_cnt,
             ss.session_interaction_length
-        FROM `kaggle-352109.otto.w2v` t
---         FROM `kaggle-352109.otto.covisit_test` t
+--         FROM `kaggle-352109.otto.w2v` t
+        FROM `kaggle-352109.otto.w2v_test` t
         INNER JOIN session_stats ss ON ss.session = t.session
         WHERE t.aid is not NULL
     ) t
