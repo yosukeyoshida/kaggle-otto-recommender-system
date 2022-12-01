@@ -83,17 +83,18 @@ def main():
             objective="lambdarank",
             metric="ndcg",
             boosting_type="dart",
-            n_estimators=500,
+            n_estimators=100,
             importance_type="gain",
         )
-        target = "gt"
-        feature_cols = train.drop(columns=[target, "session", "type"]).columns.tolist()
+        feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
+        targets = train["gt"]
+        train = train[feature_cols]
 
         # train
         print("train start")
         ranker = ranker.fit(
-            train[feature_cols],
-            train[target],
+            train,
+            targets,
             group=session_lengths_train,
         )
         print("train finish")
