@@ -1,6 +1,6 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221129_2/train_*.parquet', -- FIXME
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221201_4/train_*.parquet', -- FIXME
 --     uri='gs://kaggle-yosuke/lgbm_dataset_test/lgbm_test_*.parquet',
     format='PARQUET',
     overwrite=true
@@ -197,45 +197,93 @@ AS WITH session_stats AS (
         WHERE t.aid is not NULL
     ) t
     GROUP BY session, aid, session_interaction_length, clicks_cnt, carts_cnt, orders_cnt
-
+), ranking AS (
+    SELECT
+        aid,
+        RANK() OVER (ORDER BY clicks_cnt DESC) AS clicks_rank,
+        RANK() OVER (ORDER BY carts_cnt DESC) AS carts_rank,
+        RANK() OVER (ORDER BY orders_cnt DESC) AS orders_rank
+    FROM (
+        SELECT
+            aid,
+            SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS clicks_cnt,
+            SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS carts_cnt,
+            SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS orders_cnt
+        FROM `kaggle-352109.otto.otto-validation-test` t -- FIXME
+--         FROM `kaggle-352109.otto.test` t
+        GROUP BY aid
+    ) t
 ), union_all AS (
     SELECT * FROM aid_list3 al
     UNION ALL
     SELECT * FROM covisit
     UNION ALL
     SELECT * FROM w2v
+), group_by_session_aid AS (
+    SELECT
+        session,
+        aid,
+        MAX(session_interaction_length) AS session_interaction_length,
+        MAX(clicks_cnt) AS clicks_cnt,
+        MAX(carts_cnt) AS carts_cnt,
+        MAX(orders_cnt) AS orders_cnt,
+        MAX(this_aid_clicks_cnt) AS this_aid_clicks_cnt,
+        MAX(this_aid_carts_cnt) AS this_aid_carts_cnt,
+        MAX(this_aid_orders_cnt) AS this_aid_orders_cnt,
+        MAX(avg_action_num_reverse_chrono) AS avg_action_num_reverse_chrono,
+        MAX(min_action_num_reverse_chrono) AS min_action_num_reverse_chrono,
+        MAX(max_action_num_reverse_chrono) AS max_action_num_reverse_chrono,
+        MAX(avg_sec_since_session_start) AS avg_sec_since_session_start,
+        MAX(min_sec_since_session_start) AS min_sec_since_session_start,
+        MAX(max_sec_since_session_start) AS max_sec_since_session_start,
+        MAX(avg_sec_to_session_end) AS avg_sec_to_session_end,
+        MAX(min_sec_to_session_end) AS min_sec_to_session_end,
+        MAX(max_sec_to_session_end) AS max_sec_to_session_end,
+        MAX(avg_log_recency_score) AS avg_log_recency_score,
+        MAX(min_log_recency_score) AS min_log_recency_score,
+        MAX(max_log_recency_score) AS max_log_recency_score,
+        MAX(avg_type_weighted_log_recency_score) AS avg_type_weighted_log_recency_score,
+        MAX(min_type_weighted_log_recency_score) AS min_type_weighted_log_recency_score,
+        MAX(max_type_weighted_log_recency_score) AS max_type_weighted_log_recency_score,
+        MAX(covisit_clicks_candidate_num) AS covisit_clicks_candidate_num,
+        MAX(covisit_carts_candidate_num) AS covisit_carts_candidate_num,
+        MAX(covisit_orders_candidate_num) AS covisit_orders_candidate_num,
+        MAX(w2v_candidate_num) AS w2v_candidate_num,
+    FROM union_all
+    GROUP BY session, aid
 )
 
 SELECT
-    session,
-    aid,
-    MAX(session_interaction_length) AS session_interaction_length,
-    COUNT(*) OVER (PARTITION BY session) AS session_length,
-    MAX(clicks_cnt) AS clicks_cnt,
-    MAX(carts_cnt) AS carts_cnt,
-    MAX(orders_cnt) AS orders_cnt,
-    MAX(this_aid_clicks_cnt) AS this_aid_clicks_cnt,
-    MAX(this_aid_carts_cnt) AS this_aid_carts_cnt,
-    MAX(this_aid_orders_cnt) AS this_aid_orders_cnt,
-    MAX(avg_action_num_reverse_chrono) AS avg_action_num_reverse_chrono,
-    MAX(min_action_num_reverse_chrono) AS min_action_num_reverse_chrono,
-    MAX(max_action_num_reverse_chrono) AS max_action_num_reverse_chrono,
-    MAX(avg_sec_since_session_start) AS avg_sec_since_session_start,
-    MAX(min_sec_since_session_start) AS min_sec_since_session_start,
-    MAX(max_sec_since_session_start) AS max_sec_since_session_start,
-    MAX(avg_sec_to_session_end) AS avg_sec_to_session_end,
-    MAX(min_sec_to_session_end) AS min_sec_to_session_end,
-    MAX(max_sec_to_session_end) AS max_sec_to_session_end,
-    MAX(avg_log_recency_score) AS avg_log_recency_score,
-    MAX(min_log_recency_score) AS min_log_recency_score,
-    MAX(max_log_recency_score) AS max_log_recency_score,
-    MAX(avg_type_weighted_log_recency_score) AS avg_type_weighted_log_recency_score,
-    MAX(min_type_weighted_log_recency_score) AS min_type_weighted_log_recency_score,
-    MAX(max_type_weighted_log_recency_score) AS max_type_weighted_log_recency_score,
-    MAX(covisit_clicks_candidate_num) AS covisit_clicks_candidate_num,
-    MAX(covisit_carts_candidate_num) AS covisit_carts_candidate_num,
-    MAX(covisit_orders_candidate_num) AS covisit_orders_candidate_num,
-    MAX(w2v_candidate_num) AS w2v_candidate_num
-FROM union_all
-GROUP BY session, aid
-ORDER BY session, aid;
+    sa.session,
+    sa.aid,
+    sa.session_interaction_length,
+    sa.clicks_cnt,
+    sa.carts_cnt,
+    sa.orders_cnt,
+    sa.this_aid_clicks_cnt,
+    sa.this_aid_carts_cnt,
+    sa.this_aid_orders_cnt,
+    sa.avg_action_num_reverse_chrono,
+    sa.min_action_num_reverse_chrono,
+    sa.max_action_num_reverse_chrono,
+    sa.avg_sec_since_session_start,
+    sa.min_sec_since_session_start,
+    sa.max_sec_since_session_start,
+    sa.avg_sec_to_session_end,
+    sa.min_sec_to_session_end,
+    sa.max_sec_to_session_end,
+    sa.avg_log_recency_score,
+    sa.min_log_recency_score,
+    sa.max_log_recency_score,
+    sa.avg_type_weighted_log_recency_score,
+    sa.min_type_weighted_log_recency_score,
+    sa.max_type_weighted_log_recency_score,
+    sa.covisit_clicks_candidate_num,
+    sa.covisit_carts_candidate_num,
+    sa.covisit_orders_candidate_num,
+    sa.w2v_candidate_num,
+    r.clicks_rank,
+    r.carts_rank,
+    r.orders_rank
+FROM group_by_session_aid sa
+LEFT JOIN ranking r ON r.aid = sa.aid
