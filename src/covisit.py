@@ -306,7 +306,7 @@ def main(cv: bool, output_dir: str, **kwargs):
                 .rename(columns={0: "labels"})
         )
     carts_pred_df.index = carts_pred_df.index.astype(str)
-    pred_df_clicks["type"] = "carts"
+    carts_pred_df["type"] = "carts"
 
     # suggest buys
     if CFG.use_saved_pred:
