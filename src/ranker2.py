@@ -8,7 +8,16 @@ from lightgbm.sklearn import LGBMRanker
 
 def read_files(path):
     dfs = []
-    dtypes = {"session": "int32", "aid": "int32", "session_interaction_length": "int16", "clicks_cnt": "int16", "orders_cnt": "int16", "clicks_rank": "int32", "carts_rank": "int32", "orders_rank": "int32"}
+    dtypes = {
+        "session": "int32",
+        "aid": "int32",
+        "session_interaction_length": "int16",
+        "clicks_cnt": "int16",
+        "orders_cnt": "int16",
+        "clicks_rank": "int32",
+        "carts_rank": "int32",
+        "orders_rank": "int32",
+    }
     float_cols = [
         "this_aid_clicks_cnt",
         "this_aid_carts_cnt",
