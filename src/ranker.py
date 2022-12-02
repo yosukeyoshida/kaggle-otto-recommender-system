@@ -162,6 +162,25 @@ def run_train(type, output_dir):
     return recall
 
 
+def inference(output_dir):
+    test = read_files("./input/lgbm_dataset_test/*")
+    # session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
+    # test = test.merge(session_length, on="session")
+    feature_cols = test.drop(columns=["session"]).columns.tolist()
+    dfs = []
+    for type in ["clicks", "carts", "orders"]:
+        ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
+        scores = ranker.predict(test[feature_cols])
+        test["score"] = scores
+        test_predictions = test.sort_values(["session", "score"]).groupby("session").tail(20)
+        test_predictions = test_predictions.groupby("session")["aid"].apply(list)
+        test_predictions = test_predictions.to_frame().reset_index()
+        test_predictions["session_type"] = test_predictions["session"].apply(lambda x: str(x) + f"_{type}")
+        dfs.append(test_predictions)
+    sub = pd.concat(dfs)
+    sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
+    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+
 def main():
     run_name = None
     if CFG.wandb:
@@ -180,6 +199,7 @@ def main():
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
+    inference(output_dir)
 
 
 if __name__ == "__main__":
