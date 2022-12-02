@@ -1,13 +1,15 @@
 import gc
-from wandb.lightgbm import wandb_callback, log_summary
-import lightgbm as lgb
-import os
-import wandb
-from sklearn.model_selection import GroupKFold
 import glob
+import os
 import pickle
 
+import lightgbm as lgb
 import pandas as pd
+from sklearn.model_selection import GroupKFold
+from wandb.lightgbm import log_summary, wandb_callback
+
+import wandb
+
 
 class CFG:
     wandb = True
@@ -103,16 +105,14 @@ def run_train(type, output_dir):
         X_valid = X_valid.sort_values(["session", "aid"])
         y_valid = y_valid.loc[X_valid.index]
 
-        session_length = X_train.groupby("session").size().to_frame().rename(
-            columns={0: "session_length"}).reset_index()
+        session_length = X_train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_train = session_length["session_length"].values
         X_train = X_train.merge(session_length, on="session")
         X_train["session_length"] = X_train["session_length"].astype("int16")
         del session_length
         gc.collect()
 
-        session_length = X_valid.groupby("session").size().to_frame().rename(
-            columns={0: "session_length"}).reset_index()
+        session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_valid = session_length["session_length"].values
         X_valid = X_valid.merge(session_length, on="session")
         X_valid["session_length"] = X_valid["session_length"].astype("int16")
@@ -123,14 +123,14 @@ def run_train(type, output_dir):
         # X_valid = X_valid[feature_cols]
 
         params = {
-            'objective': 'lambdarank',
-            'metric': 'ndcg',
-            'boosting_type': "dart",
+            "objective": "lambdarank",
+            "metric": "ndcg",
+            "boosting_type": "dart",
             # 'lambdarank_truncation_level': 10,
             # 'ndcg_eval_at': [10, 5, 20],
-            'n_estimators': 100,
-            'random_state': 42,
-            'importance_type': "gain",
+            "n_estimators": 100,
+            "random_state": 42,
+            "importance_type": "gain",
         }
         _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
