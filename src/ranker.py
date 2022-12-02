@@ -130,7 +130,6 @@ def run_train(type, output_dir):
             # 'ndcg_eval_at': [10, 5, 20],
             "n_estimators": 100,
             "random_state": 42,
-            "importance_type": "gain",
         }
         _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
