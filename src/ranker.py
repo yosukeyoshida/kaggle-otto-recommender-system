@@ -128,7 +128,7 @@ def run_train(type, output_dir):
             "boosting_type": "dart",
             # 'lambdarank_truncation_level': 10,
             # 'ndcg_eval_at': [10, 5, 20],
-            "n_estimators": 100,
+            "num_iterations": 200,
             "random_state": 42,
         }
         _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
