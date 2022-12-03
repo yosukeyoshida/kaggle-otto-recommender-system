@@ -127,7 +127,7 @@ def run_train(type, output_dir):
         params = {
             "objective": "lambdarank",
             "metric": "ndcg",
-            "boosting_type": "dart",
+            "boosting_type": "gbdt",
             # 'lambdarank_truncation_level': 10,
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
@@ -137,7 +137,7 @@ def run_train(type, output_dir):
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
-        print("train start")
+        # lgb.early_stopping(stopping_rounds=100, verbose=True),
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
         log_summary(ranker, save_model_checkpoint=True)
         dump_pickle(os.path.join(output_dir, f"ranker_{type}.pkl"), ranker)
