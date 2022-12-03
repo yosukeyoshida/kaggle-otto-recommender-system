@@ -1,3 +1,4 @@
+import argparse
 import gc
 import glob
 import os
@@ -13,6 +14,7 @@ import wandb
 
 class CFG:
     wandb = True
+    num_iterations = 200
 
 
 def read_files(path):
@@ -128,7 +130,7 @@ def run_train(type, output_dir):
             "boosting_type": "dart",
             # 'lambdarank_truncation_level': 10,
             # 'ndcg_eval_at': [10, 5, 20],
-            "num_iterations": 200,
+            "num_iterations": CFG.num_iterations,
             "random_state": 42,
         }
         _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
@@ -181,6 +183,7 @@ def inference(output_dir):
     sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
+
 def main():
     run_name = None
     if CFG.wandb:
@@ -203,4 +206,8 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_iterations", type=int, default=200)
+    args = parser.parse_args()
+    CFG.num_iterations = args.num_iterations
     main()
