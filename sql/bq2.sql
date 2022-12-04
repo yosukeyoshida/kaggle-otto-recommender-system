@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221201_6/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221201_6/lgbm_test_*.parquet',
+--     uri='gs://kaggle-yosuke/lgbm_dataset/20221204_2/train_*.parquet', -- FIXME
+    uri='gs://kaggle-yosuke/lgbm_dataset_test/20221204_2/lgbm_test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -44,8 +44,8 @@ WITH aid_list AS (
           ts - (MIN(ts) OVER (PARTITION BY session)) AS sec_since_session_start,
           (MAX(ts) OVER (PARTITION BY session)) - ts AS sec_to_session_end,
           COUNT(*) OVER (PARTITION BY session) AS session_interaction_length
-        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        WHERE session = 11098730
+--         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+        FROM `kaggle-352109.otto.test`
       )
     )
 ), aggregate_by_session_aid AS (
@@ -102,8 +102,8 @@ WITH aid_list AS (
         MAX(CASE WHEN type = 'carts' THEN rank ELSE NULL END) AS covisit_carts_candidate_num,
         MAX(CASE WHEN type = 'orders' THEN rank ELSE NULL END) AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num
-    FROM `kaggle-352109.otto.covisit` -- FIXME
---     FROM `kaggle-352109.otto.covisit_test`
+--     FROM `kaggle-352109.otto.covisit` -- FIXME
+    FROM `kaggle-352109.otto.covisit_test`
     WHERE aid is not NULL
     GROUP BY session, aid
 ), w2v AS (
@@ -132,8 +132,8 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         rank AS w2v_candidate_num
-    FROM `kaggle-352109.otto.w2v` -- FIXME
---     FROM `kaggle-352109.otto.w2v_test`
+--     FROM `kaggle-352109.otto.w2v` -- FIXME
+    FROM `kaggle-352109.otto.w2v_test`
     WHERE aid is not NULL
 ), union_all AS (
     SELECT
@@ -176,8 +176,8 @@ WITH aid_list AS (
         SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS session_carts_cnt,
         SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS session_orders_cnt,
         COUNT(*) AS session_interaction_length
-    FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
---     FROM `kaggle-352109.otto.test`
+--     FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+    FROM `kaggle-352109.otto.test`
     GROUP BY session
 ), aid_stats AS (
     SELECT
@@ -194,8 +194,8 @@ WITH aid_list AS (
             SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS clicks_cnt,
             SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS carts_cnt,
             SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS orders_cnt
-        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
---         FROM `kaggle-352109.otto.test` t
+--         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+        FROM `kaggle-352109.otto.test`
         GROUP BY aid
     ) t
 )
@@ -203,6 +203,10 @@ WITH aid_list AS (
 SELECT
     sa.session,
     sa.aid,
+    ss.session_interaction_length,
+    ss.session_clicks_cnt,
+    ss.session_carts_cnt,
+    ss.session_orders_cnt,
     COALESCE(sa.session_aid_clicks_cnt, 0) AS session_aid_clicks_cnt,
     COALESCE(sa.session_aid_carts_cnt, 0) AS session_aid_carts_cnt,
     COALESCE(sa.session_aid_orders_cnt, 0) AS session_aid_orders_cnt,
@@ -225,16 +229,12 @@ SELECT
     sa.covisit_carts_candidate_num,
     sa.covisit_orders_candidate_num,
     sa.w2v_candidate_num,
-    ss.session_interaction_length,
-    ss.session_clicks_cnt,
-    ss.session_carts_cnt,
-    ss.session_orders_cnt,
+    COALESCE(ais.clicks_rank, 1000000) AS clicks_rank,
+    COALESCE(ais.carts_rank, 1000000) AS carts_rank,
+    COALESCE(ais.orders_rank, 1000000) AS orders_rank,
     COALESCE(ais.clicks_cnt, 0) AS clicks_cnt,
     COALESCE(ais.carts_cnt, 0) AS carts_cnt,
     COALESCE(ais.orders_cnt, 0) AS orders_cnt,
-    COALESCE(ais.clicks_rank, 1000000) AS clicks_rank,
-    COALESCE(ais.carts_rank, 1000000) AS carts_rank,
-    COALESCE(ais.orders_rank, 1000000) AS orders_rank
 FROM union_all sa
 LEFT JOIN session_stats ss ON ss.session = sa.session
 LEFT JOIN aid_stats ais ON ais.aid = sa.aid
