@@ -104,9 +104,9 @@ def run_train(type, output_dir):
     kf = GroupKFold(n_splits=5)
     for fold, (train_indices, valid_indices) in enumerate(kf.split(train, targets, group)):
         X_train, X_valid = train.loc[train_indices], train.loc[valid_indices]
-        del train
-        gc.collect()
         y_train, y_valid = targets.loc[train_indices], targets.loc[valid_indices]
+        del train, targets, group
+        gc.collect()
 
         X_train = X_train.sort_values(["session", "aid"])
         y_train = y_train.loc[X_train.index]
@@ -146,6 +146,7 @@ def run_train(type, output_dir):
         # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        print("train end")
         log_summary(ranker, save_model_checkpoint=True)
         dump_pickle(os.path.join(output_dir, f"ranker_{type}.pkl"), ranker)
         X_valid = X_valid.sort_values(["session", "aid"])
