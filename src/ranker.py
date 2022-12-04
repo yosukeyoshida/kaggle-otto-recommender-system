@@ -100,6 +100,7 @@ def run_train(type, output_dir):
     targets = train["gt"]
     group = train["session"]
     train = train[feature_cols + ["session"]]
+    print(f"train shape: {train.shape}")
 
     kf = GroupKFold(n_splits=5)
     for fold, (train_indices, valid_indices) in enumerate(kf.split(train, targets, group)):
@@ -138,6 +139,8 @@ def run_train(type, output_dir):
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
             "random_state": 42,
+            # "bagging_fraction": 0.5,
+            # "bagging_freq": 10,
         }
         _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
