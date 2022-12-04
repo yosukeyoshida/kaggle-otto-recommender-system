@@ -23,16 +23,20 @@ def read_files(path):
         "session": "int32",
         "aid": "int32",
         "session_interaction_length": "int16",
-        "clicks_cnt": "int16",
-        "orders_cnt": "int16",
+        "session_clicks_cnt": "int16",
+        "session_carts_cnt": "int16",
+        "session_orders_cnt": "int16",
+        "session_aid_clicks_cnt": "int16",
+        "session_aid_carts_cnt": "int16",
+        "session_aid_orders_cnt": "int16",
         "clicks_rank": "int32",
         "carts_rank": "int32",
         "orders_rank": "int32",
+        "clicks_cnt": "int16",
+        "carts_cnt": "int16",
+        "orders_cnt": "int16",
     }
     float_cols = [
-        "this_aid_clicks_cnt",
-        "this_aid_carts_cnt",
-        "this_aid_orders_cnt",
         "avg_action_num_reverse_chrono",
         "min_action_num_reverse_chrono",
         "max_action_num_reverse_chrono",
@@ -90,17 +94,20 @@ def run_train(type, output_dir):
     train["gt"].fillna(0, inplace=True)
     train["gt"] = train["gt"].astype("int8")
     train = train.reset_index(drop=True)
-    # print(train.dtypes)
+    print(train.dtypes)
 
-    feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
+    feature_cols = train.drop(columns=["gt", "session", "type", "clicks_cnt", "carts_cnt", "orders_cnt"]).columns.tolist()
     targets = train["gt"]
     group = train["session"]
     train = train[feature_cols + ["session"]]
+    print(f"train shape: {train.shape}")
 
     kf = GroupKFold(n_splits=5)
     for fold, (train_indices, valid_indices) in enumerate(kf.split(train, targets, group)):
         X_train, X_valid = train.loc[train_indices], train.loc[valid_indices]
         y_train, y_valid = targets.loc[train_indices], targets.loc[valid_indices]
+        del train, targets, group
+        gc.collect()
 
         X_train = X_train.sort_values(["session", "aid"])
         y_train = y_train.loc[X_train.index]
@@ -132,13 +139,17 @@ def run_train(type, output_dir):
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
             "random_state": 42,
+            # "bagging_fraction": 0.5,
+            # "bagging_freq": 10,
         }
         _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
         # lgb.early_stopping(stopping_rounds=100, verbose=True),
+        print("train start")
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        print("train end")
         log_summary(ranker, save_model_checkpoint=True)
         dump_pickle(os.path.join(output_dir, f"ranker_{type}.pkl"), ranker)
         X_valid = X_valid.sort_values(["session", "aid"])
@@ -168,7 +179,7 @@ def inference(output_dir):
     test = read_files("./input/lgbm_dataset_test/*")
     # session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
     # test = test.merge(session_length, on="session")
-    feature_cols = test.drop(columns=["session"]).columns.tolist()
+    feature_cols = test.drop(columns=["session", "clicks_cnt", "carts_cnt", "orders_cnt"]).columns.tolist()
     dfs = []
     for type in ["clicks", "carts", "orders"]:
         ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))

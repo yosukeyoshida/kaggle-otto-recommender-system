@@ -1,11 +1,9 @@
 import glob
 import pickle
-from collections import defaultdict
-
-import numpy as np
 import pandas as pd
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
+import os
 
 
 def dump_pickle(path, o):
@@ -21,7 +19,7 @@ def read_files(path):
     return pd.concat(dfs).reset_index(drop=True)
 
 
-def main(cv):
+def main(cv, output_dir):
     if cv:
         train_file_path = "./input/otto-validation/*_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
@@ -49,13 +47,19 @@ def main(cv):
         most_recent_aid = AIDs[0]
         nns = [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[most_recent_aid], 21)[1:]]
         labels.append(nns)
-    predictions = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
-    if cv:
-        dump_pickle("output/word2vec/predictions_cv.pkl", predictions)
-    else:
-        dump_pickle("output/word2vec/predictions.pkl", predictions)
+    pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
+    dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
+    pred_df = pred_df.explode("labels")
+    pred_df["num"] = list(range(len(pred_df)))
+    pred_df["rank"] = pred_df.groupby(["session"])["num"].rank()
+    pred_df["rank"] = pred_df["rank"].astype(int)
+    pred_df = pred_df.rename(columns={"labels": "aid"})
+    pred_df[["session", "aid", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
 
 
 if __name__ == "__main__":
-    main(cv=True)
-    main(cv=False)
+    output_dir = "output/word2vec"
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
+    main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    main(cv=False, output_dir=output_dir)
