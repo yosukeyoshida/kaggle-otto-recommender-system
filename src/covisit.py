@@ -296,7 +296,6 @@ def main(cv: bool, output_dir: str, **kwargs):
         )
         dump_pickle(os.path.join(output_dir, "pred_df_buys.pkl"), pred_df_buys)
 
-    # top_n + top
     orders_pred_df = pred_df_buys.copy()
     orders_pred_df.index = orders_pred_df.index.astype(str)
     orders_pred_df["type"] = "orders"
@@ -309,6 +308,12 @@ def main(cv: bool, output_dir: str, **kwargs):
     pred_df = pd.concat([clicks_pred_df, orders_pred_df, carts_pred_df])
     pred_df = pred_df.reset_index()
     dump_pickle(os.path.join(output_dir, "pred_df.pkl"), pred_df)
+    pred_df = pred_df.explode("labels")
+    pred_df["num"] = list(range(len(pred_df)))
+    pred_df["rank"] = pred_df.groupby(["session", "type"])["num"].rank()
+    pred_df["rank"] = pred_df["rank"].astype(int)
+    pred_df = pred_df.rename(columns={"labels": "aid"})
+    pred_df[["session", "aid", "type", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
 
 
 def run_train():
