@@ -1,12 +1,41 @@
 EXPORT DATA
   OPTIONS(
---     uri='gs://kaggle-yosuke/lgbm_dataset/20221204_2/train_*.parquet', -- FIXME
-    uri='gs://kaggle-yosuke/lgbm_dataset_test/20221204_2/lgbm_test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221205/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221205/lgbm_test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
 AS
-WITH aid_list AS (
+WITH session_stats AS (
+    SELECT
+        session,
+        SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS session_clicks_cnt,
+        SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS session_carts_cnt,
+        SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS session_orders_cnt,
+        COUNT(*) AS session_interaction_length
+    FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--     FROM `kaggle-352109.otto.test`
+    GROUP BY session
+), aid_stats AS (
+    SELECT
+        aid,
+        clicks_cnt,
+        carts_cnt,
+        orders_cnt,
+        RANK() OVER (ORDER BY clicks_cnt DESC) AS clicks_rank,
+        RANK() OVER (ORDER BY carts_cnt DESC) AS carts_rank,
+        RANK() OVER (ORDER BY orders_cnt DESC) AS orders_rank
+    FROM (
+        SELECT
+            aid,
+            SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS clicks_cnt,
+            SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS carts_cnt,
+            SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS orders_cnt
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
+        GROUP BY aid
+    ) t
+), aid_list AS (
     SELECT
           session,
           action_num_reverse_chrono,
@@ -44,8 +73,8 @@ WITH aid_list AS (
           ts - (MIN(ts) OVER (PARTITION BY session)) AS sec_since_session_start,
           (MAX(ts) OVER (PARTITION BY session)) - ts AS sec_to_session_end,
           COUNT(*) OVER (PARTITION BY session) AS session_interaction_length
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
       )
     )
 ), aggregate_by_session_aid AS (
@@ -102,8 +131,8 @@ WITH aid_list AS (
         MAX(CASE WHEN type = 'carts' THEN rank ELSE NULL END) AS covisit_carts_candidate_num,
         MAX(CASE WHEN type = 'orders' THEN rank ELSE NULL END) AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num
---     FROM `kaggle-352109.otto.covisit` -- FIXME
-    FROM `kaggle-352109.otto.covisit_test`
+    FROM `kaggle-352109.otto.covisit` -- FIXME
+--     FROM `kaggle-352109.otto.covisit_test`
     WHERE aid is not NULL
     GROUP BY session, aid
 ), w2v AS (
@@ -132,9 +161,52 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         rank AS w2v_candidate_num
---     FROM `kaggle-352109.otto.w2v` -- FIXME
-    FROM `kaggle-352109.otto.w2v_test`
+    FROM `kaggle-352109.otto.w2v` -- FIXME
+--     FROM `kaggle-352109.otto.w2v_test`
     WHERE aid is not NULL
+), ranking AS (
+    SELECT
+        session,
+        aid,
+        NULL AS avg_action_num_reverse_chrono,
+        NULL AS min_action_num_reverse_chrono,
+        NULL AS max_action_num_reverse_chrono,
+        NULL AS avg_sec_since_session_start,
+        NULL AS min_sec_since_session_start,
+        NULL AS max_sec_since_session_start,
+        NULL AS avg_sec_to_session_end,
+        NULL AS min_sec_to_session_end,
+        NULL AS max_sec_to_session_end,
+        NULL AS avg_log_recency_score,
+        NULL AS min_log_recency_score,
+        NULL AS max_log_recency_score,
+        NULL AS avg_type_weighted_log_recency_score,
+        NULL AS min_type_weighted_log_recency_score,
+        NULL AS max_type_weighted_log_recency_score,
+        NULL AS session_aid_clicks_cnt,
+        NULL AS session_aid_carts_cnt,
+        NULL AS session_aid_orders_cnt,
+        NULL AS covisit_clicks_candidate_num,
+        NULL AS covisit_carts_candidate_num,
+        NULL AS covisit_orders_candidate_num,
+        NULL AS w2v_candidate_num
+    FROM (
+        SELECT session
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
+        GROUP BY session
+    ) t
+    CROSS JOIN (
+    SELECT
+        aid,
+        clicks_cnt,
+        carts_cnt,
+        clicks_rank,
+        carts_rank,
+        orders_rank
+    FROM aid_stats
+    WHERE clicks_rank <= 10 OR carts_rank <= 10 OR orders_rank <= 10
+    )
 ), union_all AS (
     SELECT
         session,
@@ -167,37 +239,10 @@ WITH aid_list AS (
         SELECT * FROM covisit
         UNION ALL
         SELECT * FROM w2v
+        UNION ALL
+        SELECT * FROM ranking
     ) t
     GROUP BY session, aid
-), session_stats AS (
-    SELECT
-        session,
-        SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS session_clicks_cnt,
-        SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS session_carts_cnt,
-        SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS session_orders_cnt,
-        COUNT(*) AS session_interaction_length
---     FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-    FROM `kaggle-352109.otto.test`
-    GROUP BY session
-), aid_stats AS (
-    SELECT
-        aid,
-        clicks_cnt,
-        carts_cnt,
-        orders_cnt,
-        RANK() OVER (ORDER BY clicks_cnt DESC) AS clicks_rank,
-        RANK() OVER (ORDER BY carts_cnt DESC) AS carts_rank,
-        RANK() OVER (ORDER BY orders_cnt DESC) AS orders_rank
-    FROM (
-        SELECT
-            aid,
-            SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS clicks_cnt,
-            SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS carts_cnt,
-            SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS orders_cnt
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
-        GROUP BY aid
-    ) t
 )
 
 SELECT
