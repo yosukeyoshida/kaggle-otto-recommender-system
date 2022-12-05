@@ -194,8 +194,6 @@ def inference(output_dir):
         scores = ranker.predict(test[feature_cols])
         test["score"] = scores
         test_predictions = test.sort_values(["session", "score"]).groupby("session").tail(20)
-        del test
-        gc.collect()
         test_predictions = test_predictions.groupby("session")["aid"].apply(list)
         test_predictions = test_predictions.to_frame().reset_index()
         test_predictions["session_type"] = test_predictions["session"].apply(lambda x: str(x) + f"_{type}")
