@@ -94,7 +94,15 @@ def run_train(type, output_dir):
     train["gt"].fillna(0, inplace=True)
     train["gt"] = train["gt"].astype("int8")
     train = train.reset_index(drop=True)
-    print(train.dtypes)
+    # print(train.dtypes)
+
+    print(f"train: {train.shape}")
+    positives = train.loc[train['gt'] == 1]
+    negatives = train.loc[train['gt'] == 0].sample(frac=0.5, random_state=42)
+    train = pd.concat([positives, negatives], axis=0, ignore_index=True)
+    print(f"positives: {positives.shape}")
+    print(f"negatives: {negatives.shape}")
+    print(f"train: {train.shape}")
 
     feature_cols = train.drop(columns=["gt", "session", "type", "clicks_cnt", "carts_cnt", "orders_cnt"]).columns.tolist()
     targets = train["gt"]
@@ -150,6 +158,8 @@ def run_train(type, output_dir):
         print("train start")
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
         print("train end")
+        del _train, _valid
+        gc.collect()
         log_summary(ranker, save_model_checkpoint=True)
         dump_pickle(os.path.join(output_dir, f"ranker_{type}.pkl"), ranker)
         X_valid = X_valid.sort_values(["session", "aid"])
@@ -177,8 +187,6 @@ def run_train(type, output_dir):
 
 def inference(output_dir):
     test = read_files("./input/lgbm_dataset_test/*")
-    # session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-    # test = test.merge(session_length, on="session")
     feature_cols = test.drop(columns=["session", "clicks_cnt", "carts_cnt", "orders_cnt"]).columns.tolist()
     dfs = []
     for type in ["clicks", "carts", "orders"]:
@@ -186,11 +194,17 @@ def inference(output_dir):
         scores = ranker.predict(test[feature_cols])
         test["score"] = scores
         test_predictions = test.sort_values(["session", "score"]).groupby("session").tail(20)
+        del test
+        gc.collect()
         test_predictions = test_predictions.groupby("session")["aid"].apply(list)
         test_predictions = test_predictions.to_frame().reset_index()
         test_predictions["session_type"] = test_predictions["session"].apply(lambda x: str(x) + f"_{type}")
         dfs.append(test_predictions)
+        del test_predictions, ranker
+        gc.collect()
     sub = pd.concat(dfs)
+    del dfs
+    gc.collect()
     sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
