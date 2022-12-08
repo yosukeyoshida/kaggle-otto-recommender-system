@@ -119,7 +119,7 @@ def run_train(type, output_dir):
     train = train.reset_index(drop=True)
     print(train.dtypes)
 
-    feature_cols = train.drop(columns=["gt", "session", "type", "clicks_cnt", "carts_cnt", "orders_cnt"]).columns.tolist()
+    feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
     group = train["session"]
     train = train[feature_cols + ["session"]]
@@ -202,7 +202,7 @@ def inference(output_dir):
     test = read_files("./input/lgbm_dataset_test/*")
     # session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
     # test = test.merge(session_length, on="session")
-    feature_cols = test.drop(columns=["session", "clicks_cnt", "carts_cnt", "orders_cnt"]).columns.tolist()
+    feature_cols = test.drop(columns=["session"]).columns.tolist()
     dfs = []
     for type in ["clicks", "carts", "orders"]:
         ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
