@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221204_2/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221204_2/lgbm_test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221208_4/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221208_4/lgbm_test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -197,12 +197,12 @@ WITH aid_list AS (
 ), session_stats2 AS (
     SELECT
         session,
-        AVG(sec_clicks_carts) AS avg_sec_clicks_carts,
-        MIN(sec_clicks_carts) AS min_sec_clicks_carts,
-        MAX(sec_clicks_carts) AS max_sec_clicks_carts,
-        AVG(sec_carts_orders) AS avg_sec_carts_orders,
-        MIN(sec_carts_orders) AS min_sec_carts_orders,
-        MAX(sec_carts_orders) AS max_sec_carts_orders
+        AVG(sec_clicks_carts) AS avg_sec_session_clicks_carts,
+        MIN(sec_clicks_carts) AS min_sec_session_clicks_carts,
+        MAX(sec_clicks_carts) AS max_sec_session_clicks_carts,
+        AVG(sec_carts_orders) AS avg_sec_session_carts_orders,
+        MIN(sec_carts_orders) AS min_sec_session_carts_orders,
+        MAX(sec_carts_orders) AS max_sec_session_carts_orders
     FROM (
         SELECT
             session,
@@ -234,12 +234,12 @@ WITH aid_list AS (
         s1.session_clicks_carts_ratio,
         s1.session_carts_orders_ratio,
         s1.session_clicks_orders_ratio,
-        s2.avg_sec_clicks_carts,
-        s2.min_sec_clicks_carts,
-        s2.max_sec_clicks_carts,
-        s2.avg_sec_carts_orders,
-        s2.min_sec_carts_orders,
-        s2.max_sec_carts_orders
+        s2.avg_sec_session_clicks_carts,
+        s2.min_sec_session_clicks_carts,
+        s2.max_sec_session_clicks_carts,
+        s2.avg_sec_session_carts_orders,
+        s2.min_sec_session_carts_orders,
+        s2.max_sec_session_carts_orders
     FROM session_stats1 s1
     INNER JOIN session_stats2 s2 ON s2.session = s1.session
 ), aid_stats1 AS (
@@ -335,12 +335,12 @@ SELECT
     ss.session_clicks_carts_ratio,
     ss.session_carts_orders_ratio,
     ss.session_clicks_orders_ratio,
-    ss.avg_sec_clicks_carts,
-    ss.min_sec_clicks_carts,
-    ss.max_sec_clicks_carts,
-    ss.avg_sec_carts_orders,
-    ss.min_sec_carts_orders,
-    ss.max_sec_carts_orders,
+    ss.avg_sec_session_clicks_carts,
+    ss.min_sec_session_clicks_carts,
+    ss.max_sec_session_clicks_carts,
+    ss.avg_sec_session_carts_orders,
+    ss.min_sec_session_carts_orders,
+    ss.max_sec_session_carts_orders,
     COALESCE(sa.session_aid_clicks_cnt, 0) AS session_aid_clicks_cnt,
     COALESCE(sa.session_aid_carts_cnt, 0) AS session_aid_carts_cnt,
     COALESCE(sa.session_aid_orders_cnt, 0) AS session_aid_orders_cnt,

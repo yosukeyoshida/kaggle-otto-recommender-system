@@ -22,7 +22,6 @@ def read_files(path):
     dtypes = {
         "session": "int32",
         "aid": "int32",
-        "session_interaction_length": "int16",
         "session_clicks_cnt": "int16",
         "session_carts_cnt": "int16",
         "session_orders_cnt": "int16",
@@ -32,9 +31,12 @@ def read_files(path):
         "clicks_rank": "int32",
         "carts_rank": "int32",
         "orders_rank": "int32",
-        "clicks_cnt": "int16",
-        "carts_cnt": "int16",
-        "orders_cnt": "int16",
+        "session_clicks_unique_aid": "int16",
+        "session_carts_unique_aid": "int16",
+        "session_orders_unique_aid": "int16",
+        "clicks_uu_rank": "int32",
+        "carts_uu_rank": "int32",
+        "orders_uu_rank": "int32",
     }
     float_cols = [
         "avg_action_num_reverse_chrono",
@@ -56,6 +58,27 @@ def read_files(path):
         "covisit_carts_candidate_num",
         "covisit_orders_candidate_num",
         "w2v_candidate_num",
+        "session_clicks_carts_ratio",
+        "session_carts_orders_ratio",
+        "session_clicks_orders_ratio",
+        "avg_sec_clicks_carts",
+        "min_sec_clicks_carts",
+        "max_sec_clicks_carts",
+        "avg_sec_carts_orders",
+        "min_sec_carts_orders",
+        "max_sec_carts_orders",
+        "avg_clicks_cnt",
+        "avg_carts_cnt",
+        "avg_orders_cnt",
+        "clicks_carts_ratio",
+        "carts_orders_ratio",
+        "clicks_orders_ratio",
+        "avg_sec_clicks_carts",
+        "min_sec_clicks_carts",
+        "max_sec_clicks_carts",
+        "avg_sec_carts_orders",
+        "min_sec_carts_orders",
+        "max_sec_carts_orders"
     ]
 
     for file in glob.glob(path):
