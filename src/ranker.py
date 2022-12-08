@@ -78,7 +78,13 @@ def read_files(path):
         "max_sec_clicks_carts",
         "avg_sec_carts_orders",
         "min_sec_carts_orders",
-        "max_sec_carts_orders"
+        "max_sec_carts_orders",
+        "avg_sec_session_clicks_carts",
+        "min_sec_session_clicks_carts",
+        "max_sec_session_clicks_carts",
+        "avg_sec_session_carts_orders",
+        "min_sec_session_carts_orders",
+        "max_sec_session_carts_orders",
     ]
 
     for file in glob.glob(path):
