@@ -317,7 +317,7 @@ def run_inference(output_dir):
             df = pd.read_parquet(file)
             df = cast_cols(df)
             dfs.append(df)
-        test = pd.concat(dfs).reset_index(drop=True)
+        test = pd.concat(dfs)
         del dfs
         gc.collect()
         feature_cols = test.drop(columns=["session"]).columns.tolist()
@@ -327,8 +327,13 @@ def run_inference(output_dir):
             test["score"] = scores
             test["type"] = type
             preds.append(test)
-    preds = pd.concat(preds).reset_index(drop=True)
-    dump_pickle(os.path.join(output_dir, "pred_result.pkl"), preds)
+    preds = pd.concat(preds)
+    preds["session_type"] = preds.apply(lambda x: str(preds["session"]) + preds["type"], axis=1)
+    preds = preds.sort_values(["session", "score"]).groupby("session").tail(20)
+    preds = preds.groupby("session_type")["aid"].apply(list)
+    preds = preds.to_frame().reset_index()
+    preds["labels"] = preds["aid"].apply(lambda x: " ".join(map(str, x)))
+    preds[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
 def main():
