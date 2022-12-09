@@ -124,6 +124,10 @@ def run_train(type, output_dir):
     train["gt"] = train["gt"].astype("int8")
     train = train.reset_index(drop=True)
     print(train.dtypes)
+    # print(train.dtypes)^M
+    positives = train.loc[train['gt'] == 1]
+    negatives = train.loc[train['gt'] == 0].sample(frac=0.8)
+    train = pd.concat([positives, negatives], axis=0, ignore_index=True)
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
