@@ -1,9 +1,10 @@
 import glob
+import os
 import pickle
+
 import pandas as pd
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
-import os
 
 
 def dump_pickle(path, o):

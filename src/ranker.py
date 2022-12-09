@@ -125,8 +125,8 @@ def run_train(type, output_dir):
     train = train.reset_index(drop=True)
     print(train.dtypes)
     # print(train.dtypes)^M
-    positives = train.loc[train['gt'] == 1]
-    negatives = train.loc[train['gt'] == 0].sample(frac=0.8)
+    positives = train.loc[train["gt"] == 1]
+    negatives = train.loc[train["gt"] == 0].sample(frac=0.8)
     train = pd.concat([positives, negatives], axis=0, ignore_index=True)
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
@@ -303,7 +303,7 @@ def cast_cols(df):
 
 def split_list(l, n):
     for idx in range(0, len(l), n):
-        yield l[idx:idx + n]
+        yield l[idx : idx + n]
 
 
 def run_inference(output_dir):
