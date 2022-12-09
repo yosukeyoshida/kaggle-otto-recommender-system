@@ -22,7 +22,6 @@ def read_files(path):
     dtypes = {
         "session": "int32",
         "aid": "int32",
-        "session_interaction_length": "int16",
         "session_clicks_cnt": "int16",
         "session_carts_cnt": "int16",
         "session_orders_cnt": "int16",
@@ -32,9 +31,12 @@ def read_files(path):
         "clicks_rank": "int32",
         "carts_rank": "int32",
         "orders_rank": "int32",
-        "clicks_cnt": "int16",
-        "carts_cnt": "int16",
-        "orders_cnt": "int16",
+        "session_clicks_unique_aid": "int16",
+        "session_carts_unique_aid": "int16",
+        "session_orders_unique_aid": "int16",
+        "clicks_uu_rank": "int32",
+        "carts_uu_rank": "int32",
+        "orders_uu_rank": "int32",
     }
     float_cols = [
         "avg_action_num_reverse_chrono",
@@ -56,6 +58,33 @@ def read_files(path):
         "covisit_carts_candidate_num",
         "covisit_orders_candidate_num",
         "w2v_candidate_num",
+        "session_clicks_carts_ratio",
+        "session_carts_orders_ratio",
+        "session_clicks_orders_ratio",
+        "avg_sec_clicks_carts",
+        "min_sec_clicks_carts",
+        "max_sec_clicks_carts",
+        "avg_sec_carts_orders",
+        "min_sec_carts_orders",
+        "max_sec_carts_orders",
+        "avg_clicks_cnt",
+        "avg_carts_cnt",
+        "avg_orders_cnt",
+        "clicks_carts_ratio",
+        "carts_orders_ratio",
+        "clicks_orders_ratio",
+        "avg_sec_clicks_carts",
+        "min_sec_clicks_carts",
+        "max_sec_clicks_carts",
+        "avg_sec_carts_orders",
+        "min_sec_carts_orders",
+        "max_sec_carts_orders",
+        "avg_sec_session_clicks_carts",
+        "min_sec_session_clicks_carts",
+        "max_sec_session_clicks_carts",
+        "avg_sec_session_carts_orders",
+        "min_sec_session_carts_orders",
+        "max_sec_session_carts_orders",
     ]
 
     for file in glob.glob(path):
@@ -95,8 +124,12 @@ def run_train(type, output_dir):
     train["gt"] = train["gt"].astype("int8")
     train = train.reset_index(drop=True)
     print(train.dtypes)
+    # print(train.dtypes)^M
+    positives = train.loc[train["gt"] == 1]
+    negatives = train.loc[train["gt"] == 0].sample(frac=0.8)
+    train = pd.concat([positives, negatives], axis=0, ignore_index=True)
 
-    feature_cols = train.drop(columns=["gt", "session", "type", "clicks_cnt", "carts_cnt", "orders_cnt"]).columns.tolist()
+    feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
     group = train["session"]
     train = train[feature_cols + ["session"]]
@@ -177,9 +210,7 @@ def run_train(type, output_dir):
 
 def inference(output_dir):
     test = read_files("./input/lgbm_dataset_test/*")
-    # session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-    # test = test.merge(session_length, on="session")
-    feature_cols = test.drop(columns=["session", "clicks_cnt", "carts_cnt", "orders_cnt"]).columns.tolist()
+    feature_cols = test.drop(columns=["session"]).columns.tolist()
     dfs = []
     for type in ["clicks", "carts", "orders"]:
         ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
@@ -190,6 +221,130 @@ def inference(output_dir):
         test_predictions = test_predictions.to_frame().reset_index()
         test_predictions["session_type"] = test_predictions["session"].apply(lambda x: str(x) + f"_{type}")
         dfs.append(test_predictions)
+    sub = pd.concat(dfs)
+    sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
+    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+
+
+def cast_cols(df):
+    dtypes = {
+        "session": "int32",
+        "aid": "int32",
+        "session_clicks_cnt": "int16",
+        "session_carts_cnt": "int16",
+        "session_orders_cnt": "int16",
+        "session_aid_clicks_cnt": "int16",
+        "session_aid_carts_cnt": "int16",
+        "session_aid_orders_cnt": "int16",
+        "clicks_rank": "int32",
+        "carts_rank": "int32",
+        "orders_rank": "int32",
+        "session_clicks_unique_aid": "int16",
+        "session_carts_unique_aid": "int16",
+        "session_orders_unique_aid": "int16",
+        "clicks_uu_rank": "int32",
+        "carts_uu_rank": "int32",
+        "orders_uu_rank": "int32",
+    }
+    float_cols = [
+        "avg_action_num_reverse_chrono",
+        "min_action_num_reverse_chrono",
+        "max_action_num_reverse_chrono",
+        "avg_sec_since_session_start",
+        "min_sec_since_session_start",
+        "max_sec_since_session_start",
+        "avg_sec_to_session_end",
+        "min_sec_to_session_end",
+        "max_sec_to_session_end",
+        "avg_log_recency_score",
+        "min_log_recency_score",
+        "max_log_recency_score",
+        "avg_type_weighted_log_recency_score",
+        "min_type_weighted_log_recency_score",
+        "max_type_weighted_log_recency_score",
+        "covisit_clicks_candidate_num",
+        "covisit_carts_candidate_num",
+        "covisit_orders_candidate_num",
+        "w2v_candidate_num",
+        "session_clicks_carts_ratio",
+        "session_carts_orders_ratio",
+        "session_clicks_orders_ratio",
+        "avg_sec_clicks_carts",
+        "min_sec_clicks_carts",
+        "max_sec_clicks_carts",
+        "avg_sec_carts_orders",
+        "min_sec_carts_orders",
+        "max_sec_carts_orders",
+        "avg_clicks_cnt",
+        "avg_carts_cnt",
+        "avg_orders_cnt",
+        "clicks_carts_ratio",
+        "carts_orders_ratio",
+        "clicks_orders_ratio",
+        "avg_sec_clicks_carts",
+        "min_sec_clicks_carts",
+        "max_sec_clicks_carts",
+        "avg_sec_carts_orders",
+        "min_sec_carts_orders",
+        "max_sec_carts_orders",
+        "avg_sec_session_clicks_carts",
+        "min_sec_session_clicks_carts",
+        "max_sec_session_clicks_carts",
+        "avg_sec_session_carts_orders",
+        "min_sec_session_carts_orders",
+        "max_sec_session_carts_orders",
+    ]
+    for col, dtype in dtypes.items():
+        df[col] = df[col].astype(dtype)
+    for col in float_cols:
+        df[col] = df[col].astype("float16")
+    return df
+
+
+def split_list(l, n):
+    for idx in range(0, len(l), n):
+        yield l[idx : idx + n]
+
+
+def run_inference(output_dir):
+    path = "./input/lgbm_dataset_test/*"
+    files = glob.glob(path)
+    preds = []
+    files_list = split_list(files, 50)
+    for files in files_list:
+        dfs = []
+        for file in files:
+            df = pd.read_parquet(file)
+            df = cast_cols(df)
+            dfs.append(df)
+        test = pd.concat(dfs)
+        del dfs
+        gc.collect()
+        feature_cols = test.drop(columns=["session"]).columns.tolist()
+        for type in ["clicks", "carts", "orders"]:
+            ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
+            pred = test[["session", "aid"]]
+            pred["score"] = ranker.predict(test[feature_cols])
+            pred["score"] = pred["score"].astype("float16")
+            pred["type"] = type
+            preds.append(pred)
+            del pred, ranker
+            gc.collect()
+        del test
+        gc.collect()
+    preds = pd.concat(preds)
+    dump_pickle(os.path.join(output_dir, "preds.pkl"), preds)
+    dfs = []
+    for type in ["clicks", "carts", "orders"]:
+        print(type)
+        _preds = preds[preds["type"] == type]
+        _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
+        _preds = _preds.groupby("session")["aid"].apply(list)
+        _preds = _preds.to_frame().reset_index()
+        _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
+        dfs.append(_preds)
+        del _preds
+        gc.collect()
     sub = pd.concat(dfs)
     sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
@@ -214,6 +369,7 @@ def main():
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
     inference(output_dir)
+    run_inference(output_dir)
 
 
 if __name__ == "__main__":
