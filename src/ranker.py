@@ -323,10 +323,12 @@ def run_inference(output_dir):
         feature_cols = test.drop(columns=["session"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
             ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
-            scores = ranker.predict(test[feature_cols])
-            test["score"] = scores
-            test["type"] = type
-            preds.append(test)
+            pred = test[["session", "aid"]]
+            pred["score"] = ranker.predict(test[feature_cols])
+            pred["type"] = type
+            preds.append(pred)
+            del pred
+            gc.collect()
     preds = pd.concat(preds)
     preds["session_type"] = preds.apply(lambda x: str(preds["session"]) + preds["type"], axis=1)
     preds = preds.sort_values(["session", "score"]).groupby("session").tail(20)
@@ -355,7 +357,7 @@ def main():
     # if CFG.wandb:
     #     wandb.log({"total recall": total_recall})
     # inference(output_dir)
-    output_dir = ""
+    output_dir = "output/lgbm/fresh-sound-110"
     run_inference(output_dir)
 
 
