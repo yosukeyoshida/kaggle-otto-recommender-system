@@ -325,17 +325,29 @@ def run_inference(output_dir):
             ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
             pred = test[["session", "aid"]]
             pred["score"] = ranker.predict(test[feature_cols])
+            pred["score"] = pred["score"].astype("float16")
             pred["type"] = type
             preds.append(pred)
-            del pred
+            del pred, ranker
             gc.collect()
+        del test
+        gc.collect()
     preds = pd.concat(preds)
-    preds["session_type"] = preds.apply(lambda x: str(preds["session"]) + preds["type"], axis=1)
-    preds = preds.sort_values(["session", "score"]).groupby("session").tail(20)
-    preds = preds.groupby("session_type")["aid"].apply(list)
-    preds = preds.to_frame().reset_index()
-    preds["labels"] = preds["aid"].apply(lambda x: " ".join(map(str, x)))
-    preds[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+    dump_pickle(os.path.join(output_dir, "preds.pkl"), preds)
+    dfs = []
+    for type in ["clicks", "carts", "orders"]:
+        print(type)
+        _preds = preds[preds["type"] == type]
+        _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
+        _preds = _preds.groupby("session")["aid"].apply(list)
+        _preds = _preds.to_frame().reset_index()
+        _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
+        dfs.append(_preds)
+        del _preds
+        gc.collect()
+    sub = pd.concat(dfs)
+    sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
+    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
 def main():
