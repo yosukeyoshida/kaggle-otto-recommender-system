@@ -210,8 +210,6 @@ def run_train(type, output_dir):
 
 def inference(output_dir):
     test = read_files("./input/lgbm_dataset_test/*")
-    # session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-    # test = test.merge(session_length, on="session")
     feature_cols = test.drop(columns=["session"]).columns.tolist()
     dfs = []
     for type in ["clicks", "carts", "orders"]:
@@ -228,25 +226,132 @@ def inference(output_dir):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main():
-    run_name = None
-    if CFG.wandb:
-        wandb.init(project="kaggle-otto")
-        run_name = wandb.run.name
-    if run_name is not None:
-        output_dir = os.path.join("output/lgbm", run_name)
-    else:
-        output_dir = "output/lgbm"
-    os.makedirs(output_dir, exist_ok=True)
+def cast_cols(df):
+    dtypes = {
+        "session": "int32",
+        "aid": "int32",
+        "session_clicks_cnt": "int16",
+        "session_carts_cnt": "int16",
+        "session_orders_cnt": "int16",
+        "session_aid_clicks_cnt": "int16",
+        "session_aid_carts_cnt": "int16",
+        "session_aid_orders_cnt": "int16",
+        "clicks_rank": "int32",
+        "carts_rank": "int32",
+        "orders_rank": "int32",
+        "session_clicks_unique_aid": "int16",
+        "session_carts_unique_aid": "int16",
+        "session_orders_unique_aid": "int16",
+        "clicks_uu_rank": "int32",
+        "carts_uu_rank": "int32",
+        "orders_uu_rank": "int32",
+    }
+    float_cols = [
+        "avg_action_num_reverse_chrono",
+        "min_action_num_reverse_chrono",
+        "max_action_num_reverse_chrono",
+        "avg_sec_since_session_start",
+        "min_sec_since_session_start",
+        "max_sec_since_session_start",
+        "avg_sec_to_session_end",
+        "min_sec_to_session_end",
+        "max_sec_to_session_end",
+        "avg_log_recency_score",
+        "min_log_recency_score",
+        "max_log_recency_score",
+        "avg_type_weighted_log_recency_score",
+        "min_type_weighted_log_recency_score",
+        "max_type_weighted_log_recency_score",
+        "covisit_clicks_candidate_num",
+        "covisit_carts_candidate_num",
+        "covisit_orders_candidate_num",
+        "w2v_candidate_num",
+        "session_clicks_carts_ratio",
+        "session_carts_orders_ratio",
+        "session_clicks_orders_ratio",
+        "avg_sec_clicks_carts",
+        "min_sec_clicks_carts",
+        "max_sec_clicks_carts",
+        "avg_sec_carts_orders",
+        "min_sec_carts_orders",
+        "max_sec_carts_orders",
+        "avg_clicks_cnt",
+        "avg_carts_cnt",
+        "avg_orders_cnt",
+        "clicks_carts_ratio",
+        "carts_orders_ratio",
+        "clicks_orders_ratio",
+        "avg_sec_clicks_carts",
+        "min_sec_clicks_carts",
+        "max_sec_clicks_carts",
+        "avg_sec_carts_orders",
+        "min_sec_carts_orders",
+        "max_sec_carts_orders",
+        "avg_sec_session_clicks_carts",
+        "min_sec_session_clicks_carts",
+        "max_sec_session_clicks_carts",
+        "avg_sec_session_carts_orders",
+        "min_sec_session_carts_orders",
+        "max_sec_session_carts_orders",
+    ]
+    for col, dtype in dtypes.items():
+        df[col] = df[col].astype(dtype)
+    for col in float_cols:
+        df[col] = df[col].astype("float16")
+    return df
 
-    clicks_recall = run_train("clicks", output_dir)
-    carts_recall = run_train("carts", output_dir)
-    orders_recall = run_train("orders", output_dir)
-    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    if CFG.wandb:
-        wandb.log({"total recall": total_recall})
-    inference(output_dir)
+
+def split_list(l, n):
+    for idx in range(0, len(l), n):
+        yield l[idx:idx + n]
+
+
+def run_inference(output_dir):
+    path = "./input/lgbm_dataset_test/*"
+    files = glob.glob(path)
+    preds = []
+    files_list = split_list(files, 50)
+    for files in files_list:
+        dfs = []
+        for file in files:
+            df = pd.read_parquet(file)
+            df = cast_cols(df)
+            dfs.append(df)
+        test = pd.concat(dfs).reset_index(drop=True)
+        del dfs
+        gc.collect()
+        feature_cols = test.drop(columns=["session"]).columns.tolist()
+        for type in ["clicks", "carts", "orders"]:
+            ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
+            scores = ranker.predict(test[feature_cols])
+            test["score"] = scores
+            test["type"] = type
+            preds.append(test)
+    preds = pd.concat(preds).reset_index(drop=True)
+    dump_pickle(os.path.join(output_dir, "pred_result.pkl"), preds)
+
+
+def main():
+    # run_name = None
+    # if CFG.wandb:
+    #     wandb.init(project="kaggle-otto")
+    #     run_name = wandb.run.name
+    # if run_name is not None:
+    #     output_dir = os.path.join("output/lgbm", run_name)
+    # else:
+    #     output_dir = "output/lgbm"
+    # os.makedirs(output_dir, exist_ok=True)
+    #
+    # clicks_recall = run_train("clicks", output_dir)
+    # carts_recall = run_train("carts", output_dir)
+    # orders_recall = run_train("orders", output_dir)
+    # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+    # if CFG.wandb:
+    #     wandb.log({"total recall": total_recall})
+    # inference(output_dir)
+    output_dir = ""
+    run_inference(output_dir)
 
 
 if __name__ == "__main__":
