@@ -6,5 +6,6 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 RUN pip install wandb jupyterlab optuna
 RUN pip install polars lightgbm annoy gensim
+RUN pip install merlin-dataloader==0.0.2
 
 WORKDIR /root/work/

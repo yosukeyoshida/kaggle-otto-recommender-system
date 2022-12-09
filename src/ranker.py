@@ -6,10 +6,9 @@ import pickle
 
 import lightgbm as lgb
 import pandas as pd
+import wandb
 from sklearn.model_selection import GroupKFold
 from wandb.lightgbm import log_summary, wandb_callback
-
-import wandb
 
 
 class CFG:
