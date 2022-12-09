@@ -351,25 +351,24 @@ def run_inference(output_dir):
 
 
 def main():
-    # run_name = None
-    # if CFG.wandb:
-    #     wandb.init(project="kaggle-otto")
-    #     run_name = wandb.run.name
-    # if run_name is not None:
-    #     output_dir = os.path.join("output/lgbm", run_name)
-    # else:
-    #     output_dir = "output/lgbm"
-    # os.makedirs(output_dir, exist_ok=True)
-    #
-    # clicks_recall = run_train("clicks", output_dir)
-    # carts_recall = run_train("carts", output_dir)
-    # orders_recall = run_train("orders", output_dir)
-    # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    # if CFG.wandb:
-    #     wandb.log({"total recall": total_recall})
-    # inference(output_dir)
-    output_dir = "output/lgbm/fresh-sound-110"
+    run_name = None
+    if CFG.wandb:
+        wandb.init(project="kaggle-otto")
+        run_name = wandb.run.name
+    if run_name is not None:
+        output_dir = os.path.join("output/lgbm", run_name)
+    else:
+        output_dir = "output/lgbm"
+    os.makedirs(output_dir, exist_ok=True)
+
+    clicks_recall = run_train("clicks", output_dir)
+    carts_recall = run_train("carts", output_dir)
+    orders_recall = run_train("orders", output_dir)
+    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+    if CFG.wandb:
+        wandb.log({"total recall": total_recall})
+    inference(output_dir)
     run_inference(output_dir)
 
 
