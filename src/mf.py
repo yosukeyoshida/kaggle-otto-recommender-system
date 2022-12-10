@@ -46,9 +46,15 @@ class AverageMeter(object):
         return fmtstr.format(**self.__dict__)
 
 
-def main(output_dir):
-    train = cudf.read_parquet("../input/otto-full-optimized-memory-footprint/train.parquet")
-    test = cudf.read_parquet("../input/otto-full-optimized-memory-footprint/test.parquet")
+def main(cv, output_dir):
+    if cv:
+        train_file_path = "../input/otto-validation/*_parquet/*"
+        test_file_path = "../input/otto-validation/test_parquet/*"
+    else:
+        train_file_path = "../input/otto-chunk-data-inparquet-format/*_parquet/*"
+        test_file_path = "../input/otto-chunk-data-inparquet-format/test_parquet/*"
+    train = cudf.read_parquet(train_file_path)
+    test = cudf.read_parquet(test_file_path)
     train_pairs = cudf.concat([train, test])[["session", "aid"]]
     del train, test
 
