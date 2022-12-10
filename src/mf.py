@@ -1,3 +1,5 @@
+import gc
+
 import cudf
 import os
 import pandas as pd
@@ -48,15 +50,16 @@ class AverageMeter(object):
 
 def main(cv, output_dir):
     if cv:
-        train_file_path = "../input/otto-validation/*_parquet/*"
-        test_file_path = "../input/otto-validation/test_parquet/*"
+        train_file_path = "./input/otto-validation/*_parquet/*"
+        test_file_path = "./input/otto-validation/test_parquet/*"
     else:
-        train_file_path = "../input/otto-chunk-data-inparquet-format/*_parquet/*"
-        test_file_path = "../input/otto-chunk-data-inparquet-format/test_parquet/*"
+        train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+        test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     train = cudf.read_parquet(train_file_path)
     test = cudf.read_parquet(test_file_path)
     train_pairs = cudf.concat([train, test])[["session", "aid"]]
-    del train, test
+    del train
+    gc.collect()
 
     train_pairs["aid_next"] = train_pairs.groupby("session").aid.shift(-1)
     train_pairs = train_pairs[["aid", "aid_next"]].dropna().reset_index(drop=True)
@@ -116,7 +119,7 @@ def main(cv, output_dir):
     knn.fit(embeddings)
     _, aid_nns = knn.kneighbors(embeddings)
     aid_nns = aid_nns[:, 1:]
-    test = cudf.read_parquet("../input/otto-full-optimized-memory-footprint/test.parquet")
+    # test = cudf.read_parquet("../input/otto-full-optimized-memory-footprint/test.parquet")
     gr = test.reset_index(drop=True).to_pandas().groupby("session")
     test_session_AIDs = gr["aid"].apply(list)
     labels = []
@@ -133,3 +136,13 @@ def main(cv, output_dir):
     pred_df["rank"] = pred_df["rank"].astype(int)
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
+
+
+if __name__ == "__main__":
+    output_dir = "output/mf"
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
+    main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    print("cv=True end")
+    main(cv=False, output_dir=output_dir)
+    print("cv=False end")
