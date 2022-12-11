@@ -337,6 +337,7 @@ def main(cv: bool, output_dir: str, **kwargs):
     # concat
     pred_df = pd.concat([clicks_pred_df, orders_pred_df, carts_pred_df])
     pred_df = pred_df.reset_index()
+    pred_df["session"] = pred_df["session"].astype("int64")
     dump_pickle(os.path.join(output_dir, "pred_df.pkl"), pred_df)
     pred_df = pred_df.explode("labels")
     pred_df["num"] = list(range(len(pred_df)))
@@ -345,13 +346,7 @@ def main(cv: bool, output_dir: str, **kwargs):
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "type", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
     if CFG.calc_metrics:
-        prediction_dfs = []
-        for st in ["clicks", "carts", "orders"]:
-            modified_predictions = pred_df.copy()
-            modified_predictions["type"] = st
-            prediction_dfs.append(modified_predictions)
-        prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
-        calc_metrics(prediction_dfs, output_dir)
+        calc_metrics(pred_df, output_dir)
 
 
 def run_train():
