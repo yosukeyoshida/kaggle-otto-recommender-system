@@ -67,10 +67,10 @@ def main(cv, output_dir):
     test = read_files(test_file_path)
 
     if CFG.use_model:
-        w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4)
-        w2vec.save(os.path.join(output_dir, "w2vec.model"))
-    else:
         w2vec = Word2Vec.load("w2vec.model")
+    else:
+        w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4)
+    w2vec.save(os.path.join(output_dir, "w2vec.model"))
     test_session_AIDs = test.groupby("session")["aid"].apply(list)
     labels = []
     for AIDs in test_session_AIDs:
