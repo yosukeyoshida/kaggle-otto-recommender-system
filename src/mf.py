@@ -1,4 +1,6 @@
 import gc
+import pickle
+import wandb
 
 import cudf
 import os
@@ -9,6 +11,11 @@ from merlin.io import Dataset
 from merlin.loader.torch import Loader
 from torch import nn
 from torch.optim import SparseAdam
+
+class CFG:
+    calc_metrics = True
+    wandb = True
+    cv_only = False
 
 
 class MatrixFactorization(nn.Module):
@@ -46,6 +53,37 @@ class AverageMeter(object):
     def __str__(self):
         fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
         return fmtstr.format(**self.__dict__)
+
+
+def dump_pickle(path, o):
+    with open(path, "wb") as f:
+        pickle.dump(o, f)
+
+
+def calc_metrics(pred_df, output_dir):
+    score = 0
+    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    for t in ["clicks", "carts", "orders"]:
+        sub = pred_df.loc[pred_df["type"] == t].copy()
+        sub = sub.groupby("session")["aid"].apply(list)
+        test_labels = pd.read_parquet("./input/otto-validation/test_labels.parquet")
+        test_labels = test_labels.loc[test_labels["type"] == t]
+        test_labels = test_labels.merge(sub, how="left", on=["session"])
+        test_labels = test_labels[test_labels["aid"].notnull()]
+        test_labels["aid"] = test_labels["aid"].apply(lambda x: x[:20])
+        test_labels["hits"] = test_labels.apply(lambda df: len(set(df["ground_truth"]).intersection(set(df["aid"]))), axis=1)
+        test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
+        test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
+        recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
+        score += weights[t] * recall
+        dump_pickle(os.path.join(output_dir, f"test_labels_{t}.pkl"), test_labels)
+        print(f"{t} recall={recall}")
+        if CFG.wandb:
+            wandb.log({f"{t} recall": recall})
+    print(f"total recall={score}")
+    if CFG.wandb:
+        wandb.log({f"total recall": score})
+    return score
 
 
 def main(cv, output_dir):
@@ -136,13 +174,27 @@ def main(cv, output_dir):
     pred_df["rank"] = pred_df["rank"].astype(int)
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
+    if CFG.calc_metrics and cv:
+        prediction_dfs = []
+        for st in ["clicks", "carts", "orders"]:
+            modified_predictions = pred_df.copy()
+            modified_predictions["type"] = st
+            prediction_dfs.append(modified_predictions)
+        prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
+        calc_metrics(prediction_dfs, output_dir)
 
 
 if __name__ == "__main__":
-    output_dir = "output/mf"
+    run_name = None
+    if CFG.wandb:
+        wandb.init(project="kaggle-otto", job_type="mf")
+        run_name = wandb.run.name
+    if run_name is not None:
+        output_dir = os.path.join("output/mf", run_name)
+    else:
+        output_dir = "output/mf"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
     main(cv=True, output_dir=os.path.join(output_dir, "cv"))
-    print("cv=True end")
-    main(cv=False, output_dir=output_dir)
-    print("cv=False end")
+    if not CFG.cv_only:
+        main(cv=False, output_dir=output_dir)

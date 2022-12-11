@@ -17,12 +17,9 @@ class CFG:
     top_n_clicks = 20
     top_n_carts_orders = 15
     top_n_buy2buy = 15
-    use_saved_models = False
-    use_saved_pred = False
     debug = False
-    calc_metrics = True
+    cv_only = False
     wandb = True
-    cv_only = True
 
 
 def load_test(cv: bool):
@@ -275,17 +272,14 @@ def main(cv: bool, output_dir: str, **kwargs):
     files = glob.glob(file_path)
     CHUNK = int(np.ceil(len(files) / 6))
 
-    if not CFG.use_saved_models:
-        # top_n_buys -> suggest_buys
-        calc_top_carts_orders(
-            files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight={0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917}
-        )
-        # top_n_buy2buy -> suggest_buys
-        calc_top_buy2buy(files, CHUNK, output_dir, CFG.top_n_buy2buy)
-        # top_n_clicks ->  suggest_clicks
-        calc_top_clicks(files, CHUNK, output_dir, CFG.top_n_clicks)
-    else:
-        print("use saved models!!!")
+    # top_n_buys -> suggest_buys
+    calc_top_carts_orders(
+        files, CHUNK, output_dir, CFG.top_n_carts_orders, type_weight={0: 0.07197733833680556, 1: 0.708280136807459, 2: 0.05318170583899917}
+    )
+    # top_n_buy2buy -> suggest_buys
+    calc_top_buy2buy(files, CHUNK, output_dir, CFG.top_n_buy2buy)
+    # top_n_clicks ->  suggest_clicks
+    calc_top_clicks(files, CHUNK, output_dir, CFG.top_n_clicks)
 
     DISK_PIECES = 4
 
@@ -300,31 +294,25 @@ def main(cv: bool, output_dir: str, **kwargs):
     top_n_buy2buy = pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_buy2buy}_buy2buy_0.pkl"), "rb"))
 
     # suggest clicks
-    if CFG.use_saved_pred:
-        pred_df_clicks = pickle.load(open(os.path.join(output_dir, "pred_df_clicks.pkl"), "rb"))
-    else:
-        pred_df_clicks = (
-            test_df.sort_values(["session", "ts"])
-            .groupby(["session"])
-            .apply(lambda x: suggest_clicks(x, top_n_clicks))
-            .to_frame()
-            .rename(columns={0: "labels"})
-        )
-        dump_pickle(os.path.join(output_dir, "pred_df_clicks.pkl"), pred_df_clicks)
+    pred_df_clicks = (
+        test_df.sort_values(["session", "ts"])
+        .groupby(["session"])
+        .apply(lambda x: suggest_clicks(x, top_n_clicks))
+        .to_frame()
+        .rename(columns={0: "labels"})
+    )
+    dump_pickle(os.path.join(output_dir, "pred_df_clicks.pkl"), pred_df_clicks)
     pred_df_clicks.index = pred_df_clicks.index.astype(str)
     pred_df_clicks["type"] = "clicks"
     clicks_pred_df = pred_df_clicks
 
     # suggest buys
-    if CFG.use_saved_pred:
-        pred_df_buys = pickle.load(open(os.path.join(output_dir, "pred_df_buys.pkl"), "rb"))
-    else:
-        pred_df_buys = (
-            (test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys)))
-            .to_frame()
-            .rename(columns={0: "labels"})
-        )
-        dump_pickle(os.path.join(output_dir, "pred_df_buys.pkl"), pred_df_buys)
+    pred_df_buys = (
+        (test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys)))
+        .to_frame()
+        .rename(columns={0: "labels"})
+    )
+    dump_pickle(os.path.join(output_dir, "pred_df_buys.pkl"), pred_df_buys)
 
     orders_pred_df = pred_df_buys.copy()
     orders_pred_df.index = orders_pred_df.index.astype(str)
@@ -345,7 +333,7 @@ def main(cv: bool, output_dir: str, **kwargs):
     pred_df["rank"] = pred_df["rank"].astype(int)
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "type", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
-    if CFG.calc_metrics:
+    if cv:
         calc_metrics(pred_df, output_dir)
 
 
@@ -357,7 +345,7 @@ def run_train():
     if run_name is not None:
         output_dir = os.path.join("output/covisit", run_name)
     else:
-        output_dir = "output/word2vec"
+        output_dir = "output/covisit"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
     main(cv=True, output_dir=os.path.join(output_dir, "cv"))

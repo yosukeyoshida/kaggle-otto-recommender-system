@@ -9,10 +9,8 @@ from gensim.models import Word2Vec
 
 
 class CFG:
-    calc_metrics = True
     wandb = True
-    cv_only = True
-    use_model = False
+    cv_only = False
 
 
 def dump_pickle(path, o):
@@ -91,7 +89,7 @@ def main(cv, output_dir):
     pred_df["rank"] = pred_df["rank"].astype(int)
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
-    if CFG.calc_metrics:
+    if cv:
         prediction_dfs = []
         for st in ["clicks", "carts", "orders"]:
             modified_predictions = pred_df.copy()
