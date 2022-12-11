@@ -1,10 +1,17 @@
 import glob
+import wandb
 import os
 import pickle
 
 import pandas as pd
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
+
+
+class CFG:
+    calc_metrics = True
+    wandb = True
+    cv_only = True
 
 
 def dump_pickle(path, o):
@@ -18,6 +25,33 @@ def read_files(path):
         df = pd.read_parquet(file)
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
+
+
+def calc_metrics(pred_df):
+    score = 0
+    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    for t in ["clicks", "carts", "orders"]:
+        sub = pred_df.loc[pred_df.session_type.str.contains(t)].copy()
+        sub["session"] = sub.session_type.apply(lambda x: int(x.split("_")[0]))
+        sub.labels = sub.labels.apply(lambda x: [int(i) for i in x.split(" ")[:20]])
+        test_labels = pd.read_parquet("./input/otto-validation/test_labels.parquet")
+        test_labels = test_labels.loc[test_labels["type"] == t]
+        test_labels = test_labels.merge(sub, how="left", on=["session"])
+        test_labels = test_labels[test_labels["labels"].notnull()]
+        test_labels["hits"] = test_labels.apply(lambda df: len(set(df.ground_truth).intersection(set(df.labels))), axis=1)
+        test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
+        test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
+        recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
+        score += weights[t] * recall
+        dump_pickle(os.path.join(output_dir, f"test_labels_{t}.pkl"), test_labels)
+        print(f"{t} recall={recall}")
+        if CFG.wandb:
+            wandb.log({f"{t} recall": recall})
+    print(f"total recall={score}")
+    if CFG.wandb:
+        wandb.log({f"total recall": score})
+    return score
+
 
 
 def main(cv, output_dir):
@@ -56,11 +90,21 @@ def main(cv, output_dir):
     pred_df["rank"] = pred_df["rank"].astype(int)
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
+    if CFG.calc_metrics:
+        calc_metrics(pred_df)
 
 
 if __name__ == "__main__":
-    output_dir = "output/word2vec"
+    run_name = None
+    if CFG.wandb:
+        wandb.init(project="kaggle-otto")
+        run_name = wandb.run.name
+    if run_name is not None:
+        output_dir = os.path.join("output/word2vec", run_name)
+    else:
+        output_dir = "output/word2vec"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
     main(cv=True, output_dir=os.path.join(output_dir, "cv"))
-    main(cv=False, output_dir=output_dir)
+    if not CFG.cv_only:
+        main(cv=False, output_dir=output_dir)
