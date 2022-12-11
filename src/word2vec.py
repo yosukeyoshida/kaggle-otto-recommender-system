@@ -31,14 +31,14 @@ def calc_metrics(pred_df):
     score = 0
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     for t in ["clicks", "carts", "orders"]:
-        sub = pred_df.loc[pred_df.session_type.str.contains(t)].copy()
-        sub["session"] = sub.session_type.apply(lambda x: int(x.split("_")[0]))
-        sub.labels = sub.labels.apply(lambda x: [int(i) for i in x.split(" ")[:20]])
+        sub = pred_df.loc[pred_df["type"] == t].copy()
+        sub = sub.groupby("session")["aid"].apply(list)
         test_labels = pd.read_parquet("./input/otto-validation/test_labels.parquet")
         test_labels = test_labels.loc[test_labels["type"] == t]
         test_labels = test_labels.merge(sub, how="left", on=["session"])
-        test_labels = test_labels[test_labels["labels"].notnull()]
-        test_labels["hits"] = test_labels.apply(lambda df: len(set(df.ground_truth).intersection(set(df.labels))), axis=1)
+        test_labels = test_labels[test_labels["aid"].notnull()]
+        test_labels["aid"] = test_labels["aid"].apply(lambda x: x[:20])
+        test_labels["hits"] = test_labels.apply(lambda df: len(set(df["ground_truth"]).intersection(set(df["aid"]))), axis=1)
         test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
         test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
         recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
@@ -91,7 +91,13 @@ def main(cv, output_dir):
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
     if CFG.calc_metrics:
-        calc_metrics(pred_df)
+        prediction_dfs = []
+        for st in ["clicks", "carts", "orders"]:
+            modified_predictions = pred_df.copy()
+            modified_predictions["type"] = st
+            prediction_dfs.append(modified_predictions)
+        prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
+        calc_metrics(prediction_dfs)
 
 
 if __name__ == "__main__":
