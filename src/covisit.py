@@ -51,7 +51,7 @@ def suggest_clicks(df, top_n_clicks):
     aids = df.aid.tolist()
     unique_aids = list(dict.fromkeys(aids[::-1]))
     aids2 = list(itertools.chain(*[top_n_clicks[aid] for aid in unique_aids if aid in top_n_clicks]))
-    top_aids2 = [aid2 for aid2, cnt in Counter(aids2).most_common(20) if aid2 not in unique_aids]
+    top_aids2 = [aid2 for aid2, cnt in Counter(aids2).most_common(20)]
     return top_aids2
 
 
@@ -62,7 +62,7 @@ def suggest_buys(df, top_n_buy2buy, top_n_buys):
     unique_buys = list(dict.fromkeys(df.aid.tolist()[::-1]))
     aids2 = list(itertools.chain(*[top_n_buys[aid] for aid in unique_aids if aid in top_n_buys]))
     aids3 = list(itertools.chain(*[top_n_buy2buy[aid] for aid in unique_buys if aid in top_n_buy2buy]))
-    top_aids2 = [aid2 for aid2, cnt in Counter(aids2 + aids3).most_common(20) if aid2 not in unique_aids]
+    top_aids2 = [aid2 for aid2, cnt in Counter(aids2 + aids3).most_common(20)]
     return top_aids2
 
 
