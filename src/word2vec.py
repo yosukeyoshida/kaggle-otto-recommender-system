@@ -103,7 +103,7 @@ def main(cv, output_dir):
 if __name__ == "__main__":
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto")
+        wandb.init(project="kaggle-otto", job_type="word2vec")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/word2vec", run_name)
