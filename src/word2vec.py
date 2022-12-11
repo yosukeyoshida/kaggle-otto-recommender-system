@@ -12,7 +12,7 @@ class CFG:
     calc_metrics = True
     wandb = True
     cv_only = True
-    use_model = True
+    use_model = False
 
 
 def dump_pickle(path, o):
@@ -28,7 +28,7 @@ def read_files(path):
     return pd.concat(dfs).reset_index(drop=True)
 
 
-def calc_metrics(pred_df):
+def calc_metrics(pred_df, output_dir):
     score = 0
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     for t in ["clicks", "carts", "orders"]:
@@ -93,7 +93,7 @@ def main(cv, output_dir):
             modified_predictions["type"] = st
             prediction_dfs.append(modified_predictions)
         prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
-        calc_metrics(prediction_dfs)
+        calc_metrics(prediction_dfs, output_dir)
 
 
 if __name__ == "__main__":
