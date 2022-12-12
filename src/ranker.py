@@ -6,19 +6,14 @@ import pickle
 
 import lightgbm as lgb
 import pandas as pd
+import wandb
 from sklearn.model_selection import GroupKFold
 from wandb.lightgbm import log_summary, wandb_callback
-
-import wandb
 
 
 class CFG:
     wandb = True
     num_iterations = 200
-
-
-def read_files(path):
-    dfs = []
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -58,6 +53,7 @@ def read_files(path):
         "covisit_carts_candidate_num",
         "covisit_orders_candidate_num",
         "w2v_candidate_num",
+        "mf_candidate_num",
         "session_clicks_carts_ratio",
         "session_carts_orders_ratio",
         "session_clicks_orders_ratio",
@@ -87,11 +83,15 @@ def read_files(path):
         "max_sec_session_carts_orders",
     ]
 
+
+def read_files(path):
+    dfs = []
+
     for file in glob.glob(path):
         df = pd.read_parquet(file)
-        for col, dtype in dtypes.items():
+        for col, dtype in CFG.dtypes.items():
             df[col] = df[col].astype(dtype)
-        for col in float_cols:
+        for col in CFG.float_cols:
             df[col] = df[col].astype("float16")
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
@@ -208,95 +208,10 @@ def run_train(type, output_dir):
     return recall
 
 
-def inference(output_dir):
-    test = read_files("./input/lgbm_dataset_test/*")
-    feature_cols = test.drop(columns=["session"]).columns.tolist()
-    dfs = []
-    for type in ["clicks", "carts", "orders"]:
-        ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
-        scores = ranker.predict(test[feature_cols])
-        test["score"] = scores
-        test_predictions = test.sort_values(["session", "score"]).groupby("session").tail(20)
-        test_predictions = test_predictions.groupby("session")["aid"].apply(list)
-        test_predictions = test_predictions.to_frame().reset_index()
-        test_predictions["session_type"] = test_predictions["session"].apply(lambda x: str(x) + f"_{type}")
-        dfs.append(test_predictions)
-    sub = pd.concat(dfs)
-    sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
-    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
-
-
 def cast_cols(df):
-    dtypes = {
-        "session": "int32",
-        "aid": "int32",
-        "session_clicks_cnt": "int16",
-        "session_carts_cnt": "int16",
-        "session_orders_cnt": "int16",
-        "session_aid_clicks_cnt": "int16",
-        "session_aid_carts_cnt": "int16",
-        "session_aid_orders_cnt": "int16",
-        "clicks_rank": "int32",
-        "carts_rank": "int32",
-        "orders_rank": "int32",
-        "session_clicks_unique_aid": "int16",
-        "session_carts_unique_aid": "int16",
-        "session_orders_unique_aid": "int16",
-        "clicks_uu_rank": "int32",
-        "carts_uu_rank": "int32",
-        "orders_uu_rank": "int32",
-    }
-    float_cols = [
-        "avg_action_num_reverse_chrono",
-        "min_action_num_reverse_chrono",
-        "max_action_num_reverse_chrono",
-        "avg_sec_since_session_start",
-        "min_sec_since_session_start",
-        "max_sec_since_session_start",
-        "avg_sec_to_session_end",
-        "min_sec_to_session_end",
-        "max_sec_to_session_end",
-        "avg_log_recency_score",
-        "min_log_recency_score",
-        "max_log_recency_score",
-        "avg_type_weighted_log_recency_score",
-        "min_type_weighted_log_recency_score",
-        "max_type_weighted_log_recency_score",
-        "covisit_clicks_candidate_num",
-        "covisit_carts_candidate_num",
-        "covisit_orders_candidate_num",
-        "w2v_candidate_num",
-        "session_clicks_carts_ratio",
-        "session_carts_orders_ratio",
-        "session_clicks_orders_ratio",
-        "avg_sec_clicks_carts",
-        "min_sec_clicks_carts",
-        "max_sec_clicks_carts",
-        "avg_sec_carts_orders",
-        "min_sec_carts_orders",
-        "max_sec_carts_orders",
-        "avg_clicks_cnt",
-        "avg_carts_cnt",
-        "avg_orders_cnt",
-        "clicks_carts_ratio",
-        "carts_orders_ratio",
-        "clicks_orders_ratio",
-        "avg_sec_clicks_carts",
-        "min_sec_clicks_carts",
-        "max_sec_clicks_carts",
-        "avg_sec_carts_orders",
-        "min_sec_carts_orders",
-        "max_sec_carts_orders",
-        "avg_sec_session_clicks_carts",
-        "min_sec_session_clicks_carts",
-        "max_sec_session_clicks_carts",
-        "avg_sec_session_carts_orders",
-        "min_sec_session_carts_orders",
-        "max_sec_session_carts_orders",
-    ]
-    for col, dtype in dtypes.items():
+    for col, dtype in CFG.dtypes.items():
         df[col] = df[col].astype(dtype)
-    for col in float_cols:
+    for col in CFG.float_cols:
         df[col] = df[col].astype("float16")
     return df
 
@@ -368,7 +283,6 @@ def main():
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
-    inference(output_dir)
     run_inference(output_dir)
 
 
