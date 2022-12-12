@@ -14,7 +14,7 @@ import pandas as pd
 
 class CFG:
     type_labels = {"clicks": 0, "carts": 1, "orders": 2}
-    top_n_clicks = 20
+    top_n_clicks = 15
     top_n_carts_orders = 15
     top_n_buy2buy = 15
     debug = False

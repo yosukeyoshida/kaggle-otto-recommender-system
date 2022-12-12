@@ -6,6 +6,7 @@ import pickle
 import pandas as pd
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
+from collections import Counter
 
 
 class CFG:
@@ -64,10 +65,10 @@ def main(cv, output_dir):
     sentences = train.groupby("session")["aid"].apply(list).to_list()
     test = read_files(test_file_path)
 
-    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4)
+    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
 
     aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
-    index = AnnoyIndex(32, "euclidean")
+    index = AnnoyIndex(32, "angular")
 
     for aid, idx in aid2idx.items():
         index.add_item(idx, w2vec.wv.vectors[idx])
@@ -78,9 +79,11 @@ def main(cv, output_dir):
     labels = []
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs[::-1]))
-        most_recent_aid = AIDs[0]
-        nns = [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[most_recent_aid], 20)]
-        labels.append(nns)
+        most_recent_aid = AIDs
+        nns = []
+        for aid in most_recent_aid:
+            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 20)]
+        labels.append([aid for aid, cnt in Counter(nns).most_common(20)])
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
     pred_df = pred_df.explode("labels")
