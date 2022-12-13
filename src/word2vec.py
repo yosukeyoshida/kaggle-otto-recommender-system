@@ -6,11 +6,13 @@ import pickle
 import pandas as pd
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
+from collections import Counter
 
 
 class CFG:
     wandb = True
     cv_only = False
+    candidates_num = 30
 
 
 def dump_pickle(path, o):
@@ -27,7 +29,8 @@ def read_files(path):
 
 
 def calc_metrics(pred_df, output_dir):
-    score = 0
+    score_potential = 0
+    score_20 = 0
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     for t in ["clicks", "carts", "orders"]:
         sub = pred_df.loc[pred_df["type"] == t].copy()
@@ -36,21 +39,31 @@ def calc_metrics(pred_df, output_dir):
         test_labels = test_labels.loc[test_labels["type"] == t]
         test_labels = test_labels.merge(sub, how="left", on=["session"])
         test_labels = test_labels[test_labels["aid"].notnull()]
+        # potential recall
+        test_labels["hits"] = test_labels.apply(lambda df: len(set(df["ground_truth"]).intersection(set(df["aid"]))), axis=1)
+        test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
+        test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
+        recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
+        score_potential += weights[t] * recall
+        dump_pickle(os.path.join(output_dir, f"test_labels_{t}.pkl"), test_labels)
+        print(f"{t} recall@{CFG.candidates_num}={recall}")
+        if CFG.wandb:
+            wandb.log({f"{t} recall@{CFG.candidates_num}": recall})
+        # recall@20
         test_labels["aid"] = test_labels["aid"].apply(lambda x: x[:20])
         test_labels["hits"] = test_labels.apply(lambda df: len(set(df["ground_truth"]).intersection(set(df["aid"]))), axis=1)
         test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
         test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
         recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
-        score += weights[t] * recall
-        dump_pickle(os.path.join(output_dir, f"test_labels_{t}.pkl"), test_labels)
-        print(f"{t} recall={recall}")
+        score_20 += weights[t] * recall
+        print(f"{t} recall@20={recall}")
         if CFG.wandb:
-            wandb.log({f"{t} recall": recall})
-    print(f"total recall={score}")
+            wandb.log({f"{t} recall@20": recall})
+    print(f"total recall@{CFG.candidates_num}={score_potential}")
+    print(f"total recall@20={score_20}")
     if CFG.wandb:
-        wandb.log({f"total recall": score})
-    return score
-
+        wandb.log({f"total recall@{CFG.candidates_num}": score_potential})
+        wandb.log({f"total recall@20": score_20})
 
 
 def main(cv, output_dir):
@@ -64,10 +77,10 @@ def main(cv, output_dir):
     sentences = train.groupby("session")["aid"].apply(list).to_list()
     test = read_files(test_file_path)
 
-    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4)
+    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
 
     aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
-    index = AnnoyIndex(32, "euclidean")
+    index = AnnoyIndex(32, "angular")
 
     for aid, idx in aid2idx.items():
         index.add_item(idx, w2vec.wv.vectors[idx])
@@ -78,9 +91,11 @@ def main(cv, output_dir):
     labels = []
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs[::-1]))
-        most_recent_aid = AIDs[0]
-        nns = [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[most_recent_aid], 20)]
-        labels.append(nns)
+        most_recent_aid = AIDs
+        nns = []
+        for aid in most_recent_aid:
+            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 20)]
+        labels.append([aid for aid, cnt in Counter(nns).most_common(CFG.candidates_num)])
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
     pred_df = pred_df.explode("labels")

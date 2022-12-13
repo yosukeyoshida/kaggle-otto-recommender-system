@@ -2,3 +2,5 @@
 .virtual_documents
 ensemble
 notebooks/*.csv
+cufile.log
+__pycache__

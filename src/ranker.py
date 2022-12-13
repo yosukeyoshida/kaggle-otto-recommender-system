@@ -53,7 +53,6 @@ class CFG:
         "covisit_carts_candidate_num",
         "covisit_orders_candidate_num",
         "w2v_candidate_num",
-        "mf_candidate_num",
         "session_clicks_carts_ratio",
         "session_carts_orders_ratio",
         "session_clicks_orders_ratio",
