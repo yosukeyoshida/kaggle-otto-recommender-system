@@ -171,6 +171,11 @@ def run_train(type, output_dir):
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
             "random_state": 42,
+            'num_leaves': 63,  # default = 31,
+            'learning_rate': 0.01,  # default = 0.1
+            'feature_fraction': 0.8,  # default = 1.0
+            'bagging_freq': 1,  # default = 0
+            'bagging_fraction': 0.8,  # default = 1.0
             # "bagging_fraction": 0.5,
             # "bagging_freq": 10,
         }
@@ -180,7 +185,7 @@ def run_train(type, output_dir):
         gc.collect()
         # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
         print("train end")
         log_summary(ranker, save_model_checkpoint=True)
         dump_pickle(os.path.join(output_dir, f"ranker_{type}.pkl"), ranker)
