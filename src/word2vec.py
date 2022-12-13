@@ -95,7 +95,7 @@ def main(cv, output_dir):
         nns = []
         for aid in most_recent_aid:
             nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 20)]
-        labels.append([aid for aid, cnt in Counter(nns).most_common(30)])
+        labels.append([aid for aid, cnt in Counter(nns).most_common(CFG.candidates_num)])
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
     pred_df = pred_df.explode("labels")

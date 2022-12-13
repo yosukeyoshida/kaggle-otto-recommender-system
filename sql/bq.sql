@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
---     uri='gs://kaggle-yosuke/lgbm_dataset/20221212_2/train_*.parquet', -- FIXME
-    uri='gs://kaggle-yosuke/lgbm_dataset_test/20221212_2/lgbm_test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221212_2/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221212_2/lgbm_test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -44,8 +44,8 @@ WITH aid_list AS (
           ts - (MIN(ts) OVER (PARTITION BY session)) AS sec_since_session_start,
           (MAX(ts) OVER (PARTITION BY session)) - ts AS sec_to_session_end,
           COUNT(*) OVER (PARTITION BY session) AS session_interaction_length
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
       )
     )
 ), aggregate_by_session_aid AS (
@@ -104,8 +104,8 @@ WITH aid_list AS (
         MAX(CASE WHEN type = 'orders' THEN rank ELSE NULL END) AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
 --         NULL AS mf_candidate_num
---     FROM `kaggle-352109.otto.covisit_cv` -- FIXME
-    FROM `kaggle-352109.otto.covisit`
+    FROM `kaggle-352109.otto.covisit_cv` -- FIXME
+--     FROM `kaggle-352109.otto.covisit`
     WHERE aid is not NULL
     GROUP BY session, aid
 ), w2v AS (
@@ -135,8 +135,8 @@ WITH aid_list AS (
         NULL AS covisit_orders_candidate_num,
         rank AS w2v_candidate_num,
 --         NULL AS mf_candidate_num
---     FROM `kaggle-352109.otto.w2v_cv` -- FIXME
-    FROM `kaggle-352109.otto.w2v`
+    FROM `kaggle-352109.otto.w2v_cv` -- FIXME
+--     FROM `kaggle-352109.otto.w2v`
     WHERE aid is not NULL
 -- ), mf AS (
 --     SELECT
@@ -226,8 +226,8 @@ WITH aid_list AS (
             COUNT(DISTINCT(CASE WHEN type = 'clicks' THEN aid ELSE NULL END)) AS session_clicks_unique_aid,
             COUNT(DISTINCT(CASE WHEN type = 'carts' THEN aid ELSE NULL END)) AS session_carts_unique_aid,
             COUNT(DISTINCT(CASE WHEN type = 'orders' THEN aid ELSE NULL END)) AS session_orders_unique_aid
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
         GROUP BY session
     )
 ), session_stats2 AS (
@@ -252,8 +252,8 @@ WITH aid_list AS (
                 MIN(CASE WHEN type = 'clicks' THEN ts ELSE NULL END) AS first_clicks_ts,
                 MIN(CASE WHEN type = 'carts' THEN ts ELSE NULL END) AS first_carts_ts,
                 MIN(CASE WHEN type = 'orders' THEN ts ELSE NULL END) AS first_orders_ts
---             FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-                FROM `kaggle-352109.otto.test`
+            FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--                 FROM `kaggle-352109.otto.test`
             GROUP BY session, aid
         ) t
     ) t
@@ -302,8 +302,8 @@ WITH aid_list AS (
             COUNT(DISTINCT(CASE WHEN type = 'clicks' THEN session ELSE NULL END)) AS clicks_uu,
             COUNT(DISTINCT(CASE WHEN type = 'carts' THEN session ELSE NULL END)) AS carts_uu,
             COUNT(DISTINCT(CASE WHEN type = 'orders' THEN session ELSE NULL END)) AS orders_uu
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
         GROUP BY aid
     ) t
 ), aid_stats2 AS (
@@ -328,8 +328,8 @@ WITH aid_list AS (
                 MIN(CASE WHEN type = 'clicks' THEN ts ELSE NULL END) AS first_clicks_ts,
                 MIN(CASE WHEN type = 'carts' THEN ts ELSE NULL END) AS first_carts_ts,
                 MIN(CASE WHEN type = 'orders' THEN ts ELSE NULL END) AS first_orders_ts
---             FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-                FROM `kaggle-352109.otto.test`
+            FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--                 FROM `kaggle-352109.otto.test`
             GROUP BY session, aid
         ) t
     ) t
