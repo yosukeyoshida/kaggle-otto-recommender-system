@@ -5,6 +5,7 @@ import itertools
 import os
 import pickle
 from collections import Counter
+from word2vec import calc_metrics
 
 import cudf
 import numpy as np
@@ -20,6 +21,7 @@ class CFG:
     debug = False
     cv_only = False
     wandb = True
+    candidates_num = 30
 
 
 def load_test(cv: bool):
@@ -48,7 +50,7 @@ def suggest_clicks(df, top_n_clicks):
     aids = df.aid.tolist()
     unique_aids = list(dict.fromkeys(aids[::-1]))
     aids2 = list(itertools.chain(*[top_n_clicks[aid] for aid in unique_aids if aid in top_n_clicks]))
-    top_aids2 = [aid2 for aid2, cnt in Counter(aids2).most_common(20)]
+    top_aids2 = [aid2 for aid2, cnt in Counter(aids2).most_common(CFG.candidates_num)]
     return top_aids2
 
 
@@ -59,7 +61,7 @@ def suggest_buys(df, top_n_buy2buy, top_n_buys):
     unique_buys = list(dict.fromkeys(df.aid.tolist()[::-1]))
     aids2 = list(itertools.chain(*[top_n_buys[aid] for aid in unique_aids if aid in top_n_buys]))
     aids3 = list(itertools.chain(*[top_n_buy2buy[aid] for aid in unique_buys if aid in top_n_buy2buy]))
-    top_aids2 = [aid2 for aid2, cnt in Counter(aids2 + aids3).most_common(20)]
+    top_aids2 = [aid2 for aid2, cnt in Counter(aids2 + aids3).most_common(CFG.candidates_num)]
     return top_aids2
 
 
@@ -236,32 +238,6 @@ def calc_top_carts_orders(files, CHUNK, output_dir, n, type_weight):
         # SAVE PART TO DISK
         df = tmp.to_pandas().groupby("aid_x").aid_y.apply(list)
         dump_pickle(os.path.join(output_dir, f"top_{n}_carts_orders_{PART}.pkl"), df.to_dict())
-
-
-def calc_metrics(pred_df, output_dir):
-    score = 0
-    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    for t in ["clicks", "carts", "orders"]:
-        sub = pred_df.loc[pred_df["type"] == t].copy()
-        sub = sub.groupby("session")["aid"].apply(list)
-        test_labels = pd.read_parquet("./input/otto-validation/test_labels.parquet")
-        test_labels = test_labels.loc[test_labels["type"] == t]
-        test_labels = test_labels.merge(sub, how="left", on=["session"])
-        test_labels = test_labels[test_labels["aid"].notnull()]
-        test_labels["aid"] = test_labels["aid"].apply(lambda x: x[:20])
-        test_labels["hits"] = test_labels.apply(lambda df: len(set(df["ground_truth"]).intersection(set(df["aid"]))), axis=1)
-        test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
-        test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
-        recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
-        score += weights[t] * recall
-        dump_pickle(os.path.join(output_dir, f"test_labels_{t}.pkl"), test_labels)
-        print(f"{t} recall={recall}")
-        if CFG.wandb:
-            wandb.log({f"{t} recall": recall})
-    print(f"total recall={score}")
-    if CFG.wandb:
-        wandb.log({f"total recall": score})
-    return score
 
 
 def main(cv: bool, output_dir: str, **kwargs):

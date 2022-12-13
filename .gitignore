@@ -3,3 +3,4 @@
 ensemble
 notebooks/*.csv
 cufile.log
+__pycache__
