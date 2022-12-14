@@ -29,6 +29,7 @@ def read_files(path):
 
 
 def calc_metrics(pred_df, output_dir):
+    print(f"pred_df shape: {pred_df.shape}")
     score_potential = 0
     score_20 = 0
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
@@ -94,7 +95,7 @@ def main(cv, output_dir):
         most_recent_aid = AIDs
         nns = []
         for aid in most_recent_aid:
-            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 3)]
+            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 20)]
         labels.append([aid for aid, cnt in Counter(nns).most_common(CFG.candidates_num)])
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
