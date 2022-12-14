@@ -85,7 +85,7 @@ def main(cv, output_dir):
     for aid, idx in aid2idx.items():
         index.add_item(idx, w2vec.wv.vectors[idx])
 
-    index.build(10)
+    index.build(50)
     w2vec.save(os.path.join(output_dir, "w2vec.model"))
     test_session_AIDs = test.groupby("session")["aid"].apply(list)
     labels = []
@@ -94,7 +94,7 @@ def main(cv, output_dir):
         most_recent_aid = AIDs
         nns = []
         for aid in most_recent_aid:
-            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 20)]
+            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 3)]
         labels.append([aid for aid, cnt in Counter(nns).most_common(CFG.candidates_num)])
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
