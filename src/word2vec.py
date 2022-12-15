@@ -79,7 +79,7 @@ def main(cv, output_dir):
 
     # w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
     # w2vec.save(os.path.join(output_dir, "w2vec.model"))
-    w2vec = Word2Vec.load("input/w2vec.model")
+    w2vec = Word2Vec.load("input/w2v_model/w2vec.model")
     # test_session_AIDs = test.groupby("session")["aid"].apply(list)
     # dump_pickle("test_session_AIDs.pkl", test_session_AIDs)
     test_session_AIDs = pickle.load(open("input/test_session_aids/aid1.pkl", "rb"))
