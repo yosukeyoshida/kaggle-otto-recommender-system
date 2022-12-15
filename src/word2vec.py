@@ -12,7 +12,7 @@ from collections import Counter
 class CFG:
     wandb = True
     cv_only = False
-    candidates_num = 30
+    candidates_num = 20
 
 
 def dump_pickle(path, o):
@@ -67,35 +67,30 @@ def calc_metrics(pred_df, output_dir):
 
 
 def main(cv, output_dir):
-    if cv:
-        train_file_path = "./input/otto-validation/*_parquet/*"
-        test_file_path = "./input/otto-validation/test_parquet/*"
-    else:
-        train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
-        test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
-    train = read_files(train_file_path)
-    sentences = train.groupby("session")["aid"].apply(list).to_list()
-    test = read_files(test_file_path)
+    # if cv:
+    #     train_file_path = "./input/otto-validation/*_parquet/*"
+    #     test_file_path = "./input/otto-validation/test_parquet/*"
+    # else:
+    #     train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+    #     test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+    # train = read_files(train_file_path)
+    # sentences = train.groupby("session")["aid"].apply(list).to_list()
+    # test = read_files(test_file_path)
 
-    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
-
-    aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
-    index = AnnoyIndex(32, "angular")
-
-    for aid, idx in aid2idx.items():
-        index.add_item(idx, w2vec.wv.vectors[idx])
-
-    index.build(10)
-    w2vec.save(os.path.join(output_dir, "w2vec.model"))
-    test_session_AIDs = test.groupby("session")["aid"].apply(list)
+    # w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
+    # w2vec.save(os.path.join(output_dir, "w2vec.model"))
+    w2vec = Word2Vec.load("w2vec.model")
+    # test_session_AIDs = test.groupby("session")["aid"].apply(list)
+    # dump_pickle("test_session_AIDs.pkl", test_session_AIDs)
+    test_session_AIDs = pickle.load(open("input/test_session_aids/aid1.pkl", "rb"))
     labels = []
+    i = 0
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs[::-1]))
-        most_recent_aid = AIDs
-        nns = []
-        for aid in most_recent_aid:
-            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 20)]
-        labels.append([aid for aid, cnt in Counter(nns).most_common(CFG.candidates_num)])
+        labels.append([aid for aid, score in w2vec.wv.most_similar(AIDs, topn=CFG.candidates_num)])
+        i += 1
+        if i % 10000 == 0:
+            print(i)
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
     pred_df = pred_df.explode("labels")
