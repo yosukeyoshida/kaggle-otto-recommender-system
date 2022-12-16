@@ -1,16 +1,17 @@
 import gc
-import wandb
 import glob
 import itertools
 import os
 import pickle
 from collections import Counter
-from word2vec import calc_metrics
 
 import cudf
 import numpy as np
 import optuna
 import pandas as pd
+
+import wandb
+from word2vec import calc_metrics
 
 
 class CFG:

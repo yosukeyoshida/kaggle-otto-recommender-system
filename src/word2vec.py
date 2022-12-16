@@ -1,12 +1,13 @@
 import glob
-import wandb
 import os
 import pickle
+from collections import Counter
 
 import pandas as pd
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
-from collections import Counter
+
+import wandb
 
 
 class CFG:
