@@ -1,4 +1,5 @@
 import gc
+import pickle
 import os
 from typing import Any, List
 
@@ -23,6 +24,7 @@ class CFG:
     wandb = True
     cv_only = False
     debug = False
+    use_saved_dataset = True
     model_name = "gru4rec"
 
 
@@ -77,22 +79,22 @@ def main(cv, output_dir):
     else:
         train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
-    train = pl.read_parquet(train_file_path)
-    test = pl.read_parquet(test_file_path)
-    if CFG.debug:
-        unique_session = list(set(train["session"].unique()))
-        train = train.filter(train["session"].is_in(unique_session[:200]))
-        test = test.filter(test["session"].is_in(unique_session[:200]))
-    df = pl.concat([train, test])
-    df = df.sort(["session", "aid", "ts"])
-    df = df.with_columns((pl.col("ts") * 1e9).alias("ts"))
-    df = df.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
-    dataset_dir = os.path.join(output_dir, "recbox_data")
-    os.makedirs(dataset_dir, exist_ok=True)
-    df["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
-
-    del df, train
-    gc.collect()
+    if not CFG.use_saved_dataset:
+        train = pl.read_parquet(train_file_path)
+        test = pl.read_parquet(test_file_path)
+        if CFG.debug:
+            unique_session = list(set(train["session"].unique()))
+            train = train.filter(train["session"].is_in(unique_session[:200]))
+            test = test.filter(test["session"].is_in(unique_session[:200]))
+        df = pl.concat([train, test])
+        df = df.sort(["session", "aid", "ts"])
+        df = df.with_columns((pl.col("ts") * 1e9).alias("ts"))
+        df = df.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
+        dataset_dir = os.path.join(output_dir, "recbox_data")
+        os.makedirs(dataset_dir, exist_ok=True)
+        df["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
+        del df, train, test
+        gc.collect()
 
     parameter_dict = {
         "data_path": output_dir,
@@ -109,22 +111,31 @@ def main(cv, output_dir):
         "MAX_ITEM_LIST_LENGTH": CFG.MAX_ITEM,
         "eval_args": {"split": {"RS": [9, 1, 0]}, "group_by": "user", "order": "TO", "mode": "full"},
         "save_dataset": True,
+        "save_dataloaders": True,
         "checkpoint_dir": os.path.join(output_dir, "checkpoint"),
     }
 
     config = Config(model="GRU4Rec", dataset="recbox_data", config_dict=parameter_dict)
     # print(config)
-
     init_seed(config["seed"], config["reproducibility"])
-    print("create_dataset start")
-    dataset = create_dataset(config)
+
+    if CFG.use_saved_dataset:
+        print("load dataset")
+        dataset = pickle.load(open("output/gru4rec/sage-fog-266/cv/checkpoint/recbox_data-dataset.pth", "rb"))
+    else:
+        print("create_dataset start")
+        dataset = create_dataset(config)
+
     print("data_preparation start")
     train_data, valid_data, test_data = data_preparation(config, dataset)
     model = GRU4Rec(config, train_data.dataset).to(config["device"])
     trainer = Trainer(config, model)
     print("train start")
     best_valid_score, best_valid_result = trainer.fit(train_data, valid_data)
+    del train_data, valid_data
+    gc.collect()
     print("train end")
+    test = pl.read_parquet(test_file_path)
     test_session_AIDs = test.to_pandas().reset_index(drop=True).groupby("session")["aid"].apply(list)
     test_session_AIDs = test_session_AIDs.loc[test["session"].unique()]
     labels = []
