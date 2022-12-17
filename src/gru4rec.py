@@ -24,7 +24,7 @@ class CFG:
     wandb = True
     cv_only = False
     debug = False
-    use_saved_dataset = True
+    use_saved_dataset = False
     model_name = "gru4rec"
 
 
@@ -179,5 +179,6 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
     main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    print("cv train end")
     if not CFG.cv_only:
         main(cv=False, output_dir=output_dir)
