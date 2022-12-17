@@ -81,19 +81,19 @@ def main(cv, output_dir):
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     if not CFG.use_saved_dataset:
         train = pl.read_parquet(train_file_path)
-        test = pl.read_parquet(test_file_path)
+        # test = pl.read_parquet(test_file_path)
         if CFG.debug:
             unique_session = list(set(train["session"].unique()))
             train = train.filter(train["session"].is_in(unique_session[:200]))
-            test = test.filter(test["session"].is_in(unique_session[:200]))
-        df = pl.concat([train, test])
-        df = df.sort(["session", "aid", "ts"])
-        df = df.with_columns((pl.col("ts") * 1e9).alias("ts"))
-        df = df.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
+            # test = test.filter(test["session"].is_in(unique_session[:200]))
+        # df = pl.concat([train, test])
+        train = train.sort(["session", "aid", "ts"])
+        train = train.with_columns((pl.col("ts") * 1e9).alias("ts"))
+        train = train.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
         dataset_dir = os.path.join(output_dir, "recbox_data")
         os.makedirs(dataset_dir, exist_ok=True)
-        df["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
-        del df, train, test
+        train["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
+        del train
         gc.collect()
 
     parameter_dict = {
@@ -125,6 +125,7 @@ def main(cv, output_dir):
     else:
         print("create_dataset start")
         dataset = create_dataset(config)
+    print(dataset)
 
     print("data_preparation start")
     train_data, valid_data, test_data = data_preparation(config, dataset)
