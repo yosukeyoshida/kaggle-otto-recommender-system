@@ -74,10 +74,10 @@ def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
 
 def main(cv, output_dir):
     if cv:
-        train_file_path = "./input/otto-validation/*_parquet/*"
+        train_file_path = "./input/otto-validation/test_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
     else:
-        train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+        train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     if not CFG.use_saved_dataset:
         train = pl.read_parquet(train_file_path)
@@ -146,8 +146,8 @@ def main(cv, output_dir):
         try:
             nns = pred_user_to_item(item, dataset, model)["item_list"]
             labels.append(nns)
-            print(f"nns len: {len(nns)}")
         except Exception as e:
+            # FIXME: エラー出てるぽい
             labels.append([])
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
