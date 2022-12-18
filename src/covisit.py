@@ -11,7 +11,7 @@ import optuna
 import pandas as pd
 
 import wandb
-from word2vec import calc_metrics
+from util import calc_metrics, dump_pickle
 
 
 class CFG:
@@ -40,11 +40,6 @@ def load_test(cv: bool):
     if CFG.debug:
         df = df.iloc[:100]
     return df
-
-
-def dump_pickle(path, o):
-    with open(path, "wb") as f:
-        pickle.dump(o, f)
 
 
 def suggest_clicks(df, top_n_clicks):
@@ -311,7 +306,7 @@ def main(cv: bool, output_dir: str, **kwargs):
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "type", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
     if cv:
-        calc_metrics(pred_df, output_dir)
+        calc_metrics(pred_df, output_dir, CFG.candidates_num, CFG.wandb)
 
 
 def run_train():
