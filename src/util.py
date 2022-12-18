@@ -1,5 +1,6 @@
 import os
 import pickle
+import wandb
 
 import pandas as pd
 
@@ -9,7 +10,7 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def calc_metrics(pred_df, output_dir, wandb, candidates_num):
+def calc_metrics(pred_df, output_dir, candidates_num, use_wandb):
     score_potential = 0
     score_20 = 0
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
@@ -28,7 +29,7 @@ def calc_metrics(pred_df, output_dir, wandb, candidates_num):
         score_potential += weights[t] * recall
         dump_pickle(os.path.join(output_dir, f"test_labels_{t}.pkl"), test_labels)
         print(f"{t} recall@{candidates_num}={recall}")
-        if wandb:
+        if use_wandb:
             wandb.log({f"{t} recall@{candidates_num}": recall})
         # recall@20
         test_labels["aid"] = test_labels["aid"].apply(lambda x: x[:20])
@@ -38,10 +39,10 @@ def calc_metrics(pred_df, output_dir, wandb, candidates_num):
         recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
         score_20 += weights[t] * recall
         print(f"{t} recall@20={recall}")
-        if wandb:
+        if use_wandb:
             wandb.log({f"{t} recall@20": recall})
     print(f"total recall@{candidates_num}={score_potential}")
     print(f"total recall@20={score_20}")
-    if wandb:
+    if use_wandb:
         wandb.log({f"total recall@{candidates_num}": score_potential})
         wandb.log({f"total recall@20": score_20})
