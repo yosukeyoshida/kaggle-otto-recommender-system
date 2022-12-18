@@ -43,7 +43,7 @@ def main(cv, output_dir):
     for aid, idx in aid2idx.items():
         index.add_item(idx, w2vec.wv.vectors[idx])
 
-    index.build(10)
+    index.build(100)
     w2vec.save(os.path.join(output_dir, "w2vec.model"))
     test_session_AIDs = test.groupby("session")["aid"].apply(list)
     labels = []
@@ -69,7 +69,7 @@ def main(cv, output_dir):
             modified_predictions["type"] = st
             prediction_dfs.append(modified_predictions)
         prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
-        calc_metrics(prediction_dfs, output_dir)
+        calc_metrics(prediction_dfs, output_dir, CFG.candidates_num, CFG.wandb)
 
 
 if __name__ == "__main__":
