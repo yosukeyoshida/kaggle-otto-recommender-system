@@ -1,9 +1,8 @@
 import gc
+import os
 import pickle
-import wandb
 
 import cudf
-import os
 import pandas as pd
 import torch
 from cuml.neighbors import NearestNeighbors
@@ -11,6 +10,9 @@ from merlin.io import Dataset
 from merlin.loader.torch import Loader
 from torch import nn
 from torch.optim import SparseAdam
+
+import wandb
+
 
 class CFG:
     calc_metrics = True

@@ -1,12 +1,13 @@
 import glob
-import wandb
 import os
-import pickle
+from collections import Counter
 
 import pandas as pd
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
-from collections import Counter
+
+import wandb
+from util import calc_metrics, dump_pickle
 
 
 class CFG:
@@ -15,55 +16,12 @@ class CFG:
     candidates_num = 30
 
 
-def dump_pickle(path, o):
-    with open(path, "wb") as f:
-        pickle.dump(o, f)
-
-
 def read_files(path):
     dfs = []
     for file in glob.glob(path):
         df = pd.read_parquet(file)
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
-
-
-def calc_metrics(pred_df, output_dir):
-    score_potential = 0
-    score_20 = 0
-    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    for t in ["clicks", "carts", "orders"]:
-        sub = pred_df.loc[pred_df["type"] == t].copy()
-        sub = sub.groupby("session")["aid"].apply(list)
-        test_labels = pd.read_parquet("./input/otto-validation/test_labels.parquet")
-        test_labels = test_labels.loc[test_labels["type"] == t]
-        test_labels = test_labels.merge(sub, how="left", on=["session"])
-        test_labels = test_labels[test_labels["aid"].notnull()]
-        # potential recall
-        test_labels["hits"] = test_labels.apply(lambda df: len(set(df["ground_truth"]).intersection(set(df["aid"]))), axis=1)
-        test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
-        test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
-        recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
-        score_potential += weights[t] * recall
-        dump_pickle(os.path.join(output_dir, f"test_labels_{t}.pkl"), test_labels)
-        print(f"{t} recall@{CFG.candidates_num}={recall}")
-        if CFG.wandb:
-            wandb.log({f"{t} recall@{CFG.candidates_num}": recall})
-        # recall@20
-        test_labels["aid"] = test_labels["aid"].apply(lambda x: x[:20])
-        test_labels["hits"] = test_labels.apply(lambda df: len(set(df["ground_truth"]).intersection(set(df["aid"]))), axis=1)
-        test_labels["gt_count"] = test_labels.ground_truth.str.len().clip(0, 20)
-        test_labels["recall"] = test_labels["hits"] / test_labels["gt_count"]
-        recall = test_labels["hits"].sum() / test_labels["gt_count"].sum()
-        score_20 += weights[t] * recall
-        print(f"{t} recall@20={recall}")
-        if CFG.wandb:
-            wandb.log({f"{t} recall@20": recall})
-    print(f"total recall@{CFG.candidates_num}={score_potential}")
-    print(f"total recall@20={score_20}")
-    if CFG.wandb:
-        wandb.log({f"total recall@{CFG.candidates_num}": score_potential})
-        wandb.log({f"total recall@20": score_20})
 
 
 def main(cv, output_dir):
@@ -85,7 +43,7 @@ def main(cv, output_dir):
     for aid, idx in aid2idx.items():
         index.add_item(idx, w2vec.wv.vectors[idx])
 
-    index.build(10)
+    index.build(100)
     w2vec.save(os.path.join(output_dir, "w2vec.model"))
     test_session_AIDs = test.groupby("session")["aid"].apply(list)
     labels = []
@@ -111,7 +69,7 @@ def main(cv, output_dir):
             modified_predictions["type"] = st
             prediction_dfs.append(modified_predictions)
         prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
-        calc_metrics(prediction_dfs, output_dir)
+        calc_metrics(prediction_dfs, output_dir, CFG.candidates_num, CFG.wandb)
 
 
 if __name__ == "__main__":
