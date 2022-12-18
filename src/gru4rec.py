@@ -1,4 +1,5 @@
 import gc
+import argparse
 import pickle
 import os
 from typing import Any, List
@@ -20,12 +21,12 @@ from word2vec import calc_metrics, dump_pickle
 
 
 class CFG:
-    MAX_ITEM = 30
     wandb = True
-    cv_only = False
     debug = False
     use_saved_dataset = False
     model_name = "gru4rec"
+    MAX_ITEM = 30
+    candidates_num = 20
 
 
 class ItemHistory(BaseModel):
@@ -138,16 +139,14 @@ def main(cv, output_dir):
     print("train end")
     test = pl.read_parquet(test_file_path)
     test_session_AIDs = test.to_pandas().reset_index(drop=True).groupby("session")["aid"].apply(list)
-    test_session_AIDs = test_session_AIDs.loc[test["session"].unique()]
     labels = []
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs))
-        item = ItemHistory(sequence=AIDs, topk=20)
+        item = ItemHistory(sequence=AIDs, topk=CFG.candidates_num)
         try:
             nns = pred_user_to_item(item, dataset, model)["item_list"]
             labels.append(nns)
         except Exception as e:
-            # FIXME: エラー出てるぽい
             labels.append([])
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
@@ -156,6 +155,8 @@ def main(cv, output_dir):
     pred_df["rank"] = pred_df.groupby(["session"])["num"].rank()
     pred_df["rank"] = pred_df["rank"].astype(int)
     pred_df = pred_df.rename(columns={"labels": "aid"})
+    pred_df = pred_df[pred_df["aid"].notnull()]
+    pred_df["aid"] = pred_df["aid"].astype(int)
     pred_df[["session", "aid", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
     if cv:
         prediction_dfs = []
@@ -178,7 +179,15 @@ if __name__ == "__main__":
         output_dir = f"output/{CFG.model_name}"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-    main(cv=True, output_dir=os.path.join(output_dir, "cv"))
-    print("cv train end")
-    if not CFG.cv_only:
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--type", type=str)
+    args = parser.parse_args()
+
+    if CFG.wandb:
+        wandb.log({"type": args.type})
+
+    if args.type == "cv":
+        main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    elif args.type == "sub":
         main(cv=False, output_dir=output_dir)
