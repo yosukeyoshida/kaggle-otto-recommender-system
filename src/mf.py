@@ -12,26 +12,11 @@ import wandb
 
 
 class CFG:
-    calc_metrics = True
-    wandb = False
-    cv_only = True
+    wandb = True
+    cv_only = False
     candidate_num = 20
     num_epochs = 10
     lr = 0.1
-
-
-class ClicksDataset(Dataset):
-    def __init__(self, pairs):
-        self.aid1 = pairs['aid'].to_numpy()
-        self.aid2 = pairs['aid_next'].to_numpy()
-
-    def __getitem__(self, idx):
-        aid1 = self.aid1[idx]
-        aid2 = self.aid2[idx]
-        return [aid1, aid2]
-
-    def __len__(self):
-        return len(self.aid1)
 
 
 class MatrixFactorization(nn.Module):
@@ -84,17 +69,19 @@ def main(cv, output_dir):
     train_pairs[:-10_000_000].to_pandas().to_parquet(os.path.join(output_dir, 'train_pairs.parquet'))
     train_pairs[-10_000_000:].to_pandas().to_parquet(os.path.join(output_dir, 'valid_pairs.parquet'))
 
-    train_ds = Dataset(os.path.join(output_dir, 'train_pairs.parquet'))
+    train_ds = Dataset(os.path.join(output_dir, 'train_pairs.parquet'), cpu=True)
     train_dl_merlin = Loader(train_ds, 65536, True)
 
-    valid_ds = Dataset(os.path.join(output_dir, "valid_pairs.parquet"))
+    valid_ds = Dataset(os.path.join(output_dir, "valid_pairs.parquet"), cpu=True)
     valid_dl_merlin = Loader(valid_ds, 65536, True)
 
     model = MatrixFactorization(cardinality_aids + 1, 32)
     optimizer = SparseAdam(model.parameters(), lr=CFG.lr)
     criterion = nn.BCEWithLogitsLoss()
 
+    print("train start")
     for epoch in range(CFG.num_epochs):
+        print(f"epoch={epoch}")
         for batch, _ in train_dl_merlin:
             model.train()
             losses = AverageMeter("Loss", ":.4e")
@@ -127,15 +114,16 @@ def main(cv, output_dir):
     dump_pickle(os.path.join(output_dir, "model.pkl"), model)
     embeddings = model.aid_factors.weight.detach().cpu().numpy()
 
-    index = AnnoyIndex(32, 'euclidean')
+    index = AnnoyIndex(32, 'angular')
     for i, v in enumerate(embeddings):
         index.add_item(i, v)
 
-    index.build(10)
+    index.build(50)
     test = pl.read_parquet(test_file_path)
     test_session_AIDs = test.to_pandas().reset_index(drop=True).groupby('session')['aid'].apply(list)
     dump_pickle(os.path.join(output_dir, "test_session_AIDs.pkl"), test_session_AIDs)
     labels = []
+    print("inference start")
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs[::-1]))
         most_recent_aid = AIDs[0]
@@ -149,6 +137,7 @@ def main(cv, output_dir):
     pred_df["rank"] = pred_df["rank"].astype(int)
     pred_df = pred_df.rename(columns={"labels": "aid"})
     pred_df[["session", "aid", "rank"]].to_csv(os.path.join(output_dir, "pred_df.csv"), index=False)
+    print("calc metrics start")
     if cv:
         prediction_dfs = []
         for st in ["clicks", "carts", "orders"]:
