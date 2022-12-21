@@ -54,6 +54,7 @@ class CFG:
         "covisit_carts_candidate_num",
         "covisit_orders_candidate_num",
         "w2v_candidate_num",
+        "gru4rec_candidate_num",
         "session_clicks_carts_ratio",
         "session_carts_orders_ratio",
         "session_clicks_orders_ratio",
@@ -128,6 +129,14 @@ def run_train(type, output_dir):
     positives = train.loc[train["gt"] == 1]
     negatives = train.loc[train["gt"] == 0].sample(frac=0.8)
     train = pd.concat([positives, negatives], axis=0, ignore_index=True)
+    if CFG.wandb:
+        wandb.log({
+            "train total size": len(train),
+            "train positive size": len(positives),
+            "train negative size": len(negatives),
+        })
+    del positives, negatives
+    gc.collect()
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
@@ -268,7 +277,7 @@ def run_inference(output_dir):
 def main():
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto")
+        wandb.init(project="kaggle-otto", job_type="ranker")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)

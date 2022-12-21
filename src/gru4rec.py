@@ -41,7 +41,7 @@ class RecommendedItems(BaseModel):
 
 def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
     item_history_dict = item_history.dict()
-    item_sequence = item_history_dict["sequence"]
+    item_sequence = item_history_dict["sequence"][-20:]
     item_length = len(item_sequence)
     pad_length = CFG.MAX_ITEM  # pre-defined by recbole
 
@@ -152,6 +152,9 @@ def main(cv, output_dir):
     labels = []
     dump_pickle(os.path.join(output_dir, "model.pkl"), model)
     dump_pickle(os.path.join(output_dir, "test_session_AIDs.pkl"), test_session_AIDs)
+    # model = pickle.load(open(os.path.join(output_dir, "model.pkl"), "rb"))
+    # dataset = pickle.load(open(os.path.join(output_dir, "checkpoint/recbox_data-dataset.pth"), "rb"))
+    # test_session_AIDs = pickle.load(open(os.path.join(output_dir, "test_session_AIDs.pkl"), "rb"))
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs))
         item = ItemHistory(sequence=AIDs, topk=CFG.candidates_num)
@@ -174,7 +177,7 @@ def main(cv, output_dir):
             modified_predictions["type"] = st
             prediction_dfs.append(modified_predictions)
         prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
-        calc_metrics(prediction_dfs, output_dir)
+        calc_metrics(prediction_dfs, output_dir, CFG.candidates_num, CFG.wandb)
 
 
 if __name__ == "__main__":
