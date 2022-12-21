@@ -18,14 +18,14 @@ from recbole.utils import init_logger, init_seed
 
 import wandb
 from word2vec import calc_metrics, dump_pickle
+import math
 
 
 class CFG:
     wandb = True
-    debug = False
     use_saved_dataset = False
     model_name = "gru4rec"
-    MAX_ITEM = 30
+    MAX_ITEM = 20
     candidates_num = 20
 
 
@@ -81,20 +81,30 @@ def main(cv, output_dir):
         train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     if not CFG.use_saved_dataset:
-        train = pl.read_parquet(train_file_path)
-        # test = pl.read_parquet(test_file_path)
-        if CFG.debug:
-            unique_session = list(set(train["session"].unique()))
-            train = train.filter(train["session"].is_in(unique_session[:200]))
-            # test = test.filter(test["session"].is_in(unique_session[:200]))
-        # df = pl.concat([train, test])
+        _train = pl.read_parquet(train_file_path).to_pandas()
+        _train["session"] = _train["session"].astype("int32")
+        _train["aid"] = _train["aid"].astype("int32")
+        _train["ts"] = (_train["ts"] / 1000).astype("int32")
+        train = pl.from_pandas(_train)
+        # _test = pl.read_parquet(test_file_path).to_pandas()
+        # _test["session"] = _test["session"].astype("int32")
+        # _test["aid"] = _test["aid"].astype("int32")
+        # _test["ts"] = (_test["ts"] / 1000).astype("int32")
+        # test = pl.from_pandas(_test)
+        # train = pl.concat([train, test])
+        print(f"train shape: {train.shape}")
+        # sessions = train["session"].unique()
+        # sample_size = math.floor(len(sessions) * 0.2)
+        # sample_sessions = sessions.sample(sample_size)
+        # train = train.filter(pl.col("session").is_in(sample_sessions))
+        # print(f"sample train shape: {train.shape}")
         train = train.sort(["session", "aid", "ts"])
         train = train.with_columns((pl.col("ts") * 1e9).alias("ts"))
         train = train.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
         dataset_dir = os.path.join(output_dir, "recbox_data")
         os.makedirs(dataset_dir, exist_ok=True)
         train["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
-        del train
+        del train, _train
         gc.collect()
 
     parameter_dict = {
@@ -102,8 +112,8 @@ def main(cv, output_dir):
         "USER_ID_FIELD": "session",
         "ITEM_ID_FIELD": "aid",
         "TIME_FIELD": "ts",
-        "user_inter_num_interval": "[5,inf)",
-        "item_inter_num_interval": "[5,inf)",
+        # "user_inter_num_interval": "[5,inf)",
+        # "item_inter_num_interval": "[5,inf)",
         "load_col": {"inter": ["session", "aid", "ts"]},
         "train_neg_sample_args": None,
         "epochs": 10,
@@ -140,14 +150,13 @@ def main(cv, output_dir):
     test = pl.read_parquet(test_file_path)
     test_session_AIDs = test.to_pandas().reset_index(drop=True).groupby("session")["aid"].apply(list)
     labels = []
+    dump_pickle(os.path.join(output_dir, "model.pkl"), model)
+    dump_pickle(os.path.join(output_dir, "test_session_AIDs.pkl"), test_session_AIDs)
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs))
         item = ItemHistory(sequence=AIDs, topk=CFG.candidates_num)
-        try:
-            nns = pred_user_to_item(item, dataset, model)["item_list"]
-            labels.append(nns)
-        except Exception as e:
-            labels.append([])
+        nns = pred_user_to_item(item, dataset, model)["item_list"]
+        labels.append(nns)
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
     pred_df = pred_df.explode("labels")
