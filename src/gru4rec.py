@@ -25,7 +25,7 @@ class CFG:
     use_saved_dataset = False
     model_name = "gru4rec"
     MAX_ITEM = 20
-    candidates_num = 20
+    candidates_num = 30
 
 
 class ItemHistory(BaseModel):
