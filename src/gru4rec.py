@@ -23,7 +23,7 @@ from word2vec import calc_metrics, dump_pickle
 class CFG:
     wandb = True
     use_saved_dataset = False
-    model_name = "gru4rec"
+    model_name = "GRU4Rec"
     MAX_ITEM = 20
     candidates_num = 30
 
@@ -125,7 +125,7 @@ def main(cv, output_dir):
         "checkpoint_dir": os.path.join(output_dir, "checkpoint"),
     }
 
-    config = Config(model="GRU4Rec", dataset="recbox_data", config_dict=parameter_dict)
+    config = Config(model=CFG.model_name, dataset="recbox_data", config_dict=parameter_dict)
     # print(config)
     init_seed(config["seed"], config["reproducibility"])
 
@@ -182,12 +182,12 @@ def main(cv, output_dir):
 if __name__ == "__main__":
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type=CFG.model_name)
+        wandb.init(project="kaggle-otto", job_type=CFG.model_name.lower())
         run_name = wandb.run.name
     if run_name is not None:
-        output_dir = os.path.join(f"output/{CFG.model_name}", run_name)
+        output_dir = os.path.join(f"output/{CFG.model_name.lower()}", run_name)
     else:
-        output_dir = f"output/{CFG.model_name}"
+        output_dir = f"output/{CFG.model_name.lower()}"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
 
