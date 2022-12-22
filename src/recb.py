@@ -12,10 +12,7 @@ from pydantic import BaseModel
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
 from recbole.data.interaction import Interaction
-from recbole.model.sequential_recommender import GRU4Rec
-from recbole.model.general_recommender.recvae import RecVAE
-from recbole.trainer import Trainer, RecVAETrainer
-from recbole.utils import init_seed
+from recbole.utils import init_seed, get_model, get_trainer
 
 import wandb
 from word2vec import calc_metrics, dump_pickle
@@ -24,7 +21,7 @@ from word2vec import calc_metrics, dump_pickle
 class CFG:
     wandb = True
     use_saved_dataset = False
-    model_name = "GRU4Rec"
+    model_name = "GRU4Rec"  # NARM
     MAX_ITEM = 20
     candidates_num = 30
 
@@ -140,12 +137,8 @@ def main(cv, output_dir):
 
     print("data_preparation start")
     train_data, valid_data, test_data = data_preparation(config, dataset)
-    if CFG.model_name == "GRU4Rec":
-        model = GRU4Rec(config, train_data.dataset).to(config["device"])
-        trainer = Trainer(config, model)
-    elif CFG.model_name == "RecVAE":
-        model = RecVAE(config, train_data.dataset).to(config["device"])
-        trainer = RecVAETrainer(config, model)
+    model = get_model(config["model"])(config, train_data._dataset).to(config["device"])
+    trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     print("train start")
     best_valid_score, best_valid_result = trainer.fit(train_data, valid_data)
     del train_data, valid_data
