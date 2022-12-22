@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221221/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221221/lgbm_test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221221_2/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221221_2/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -74,7 +74,7 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
-        NULL AS gru4rec_candidate_num
+        NULL AS gru4rec_candidate_num,
 --         NULL AS mf_candidate_num
     FROM aid_list
     GROUP BY session, aid
@@ -104,7 +104,7 @@ WITH aid_list AS (
         MAX(CASE WHEN type = 'carts' THEN rank ELSE NULL END) AS covisit_carts_candidate_num,
         MAX(CASE WHEN type = 'orders' THEN rank ELSE NULL END) AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
-        NULL AS gru4rec_candidate_num
+        NULL AS gru4rec_candidate_num,
 --         NULL AS mf_candidate_num
     FROM `kaggle-352109.otto.covisit_cv` -- FIXME
 --     FROM `kaggle-352109.otto.covisit`
@@ -136,7 +136,7 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         rank AS w2v_candidate_num,
-        NULL AS gru4rec_candidate_num
+        NULL AS gru4rec_candidate_num,
 --         NULL AS mf_candidate_num
     FROM `kaggle-352109.otto.w2v_cv` -- FIXME
 --     FROM `kaggle-352109.otto.w2v`
@@ -167,7 +167,7 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
-        rank AS gru4rec_candidate_num
+        rank AS gru4rec_candidate_num,
 --         NULL AS mf_candidate_num
     FROM `kaggle-352109.otto.gru4rec_cv` -- FIXME
 --     FROM `kaggle-352109.otto.gru4rec`
@@ -198,6 +198,7 @@ WITH aid_list AS (
 --         NULL AS covisit_carts_candidate_num,
 --         NULL AS covisit_orders_candidate_num,
 --         NULL AS w2v_candidate_num,
+--         NULL AS gru4rec_candidate_num,
 --         rank AS mf_candidate_num
 --     FROM `kaggle-352109.otto.mf_cv`
 --     FROM `kaggle-352109.otto.mf`
@@ -229,6 +230,7 @@ WITH aid_list AS (
         MAX(covisit_orders_candidate_num) AS covisit_orders_candidate_num,
         MAX(w2v_candidate_num) AS w2v_candidate_num,
         MAX(gru4rec_candidate_num) AS gru4rec_candidate_num,
+--         MAX(mf_candidate_num) AS mf_candidate_num,
     FROM (
         SELECT * FROM aggregate_by_session_aid
         UNION ALL
@@ -237,6 +239,8 @@ WITH aid_list AS (
         SELECT * FROM w2v
         UNION ALL
         SELECT * FROM gru4rec
+--         UNION ALL
+--         SELECT * FROM mf
     ) t
     GROUP BY session, aid
 ), session_stats1 AS (
@@ -434,6 +438,7 @@ SELECT
     sa.covisit_orders_candidate_num,
     sa.w2v_candidate_num,
     sa.gru4rec_candidate_num,
+--     sa.mf_candidate_num,
     COALESCE(ais.clicks_rank, 1000000) AS clicks_rank,
     COALESCE(ais.carts_rank, 1000000) AS carts_rank,
     COALESCE(ais.orders_rank, 1000000) AS orders_rank,

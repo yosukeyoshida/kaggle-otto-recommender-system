@@ -14,11 +14,10 @@ from recbole.data import create_dataset, data_preparation
 from recbole.data.interaction import Interaction
 from recbole.model.sequential_recommender import GRU4Rec
 from recbole.trainer import Trainer
-from recbole.utils import init_logger, init_seed
+from recbole.utils import init_seed
 
 import wandb
 from word2vec import calc_metrics, dump_pickle
-import math
 
 
 class CFG:
@@ -41,7 +40,7 @@ class RecommendedItems(BaseModel):
 
 def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
     item_history_dict = item_history.dict()
-    item_sequence = item_history_dict["sequence"][-20:]
+    item_sequence = item_history_dict["sequence"][-CFG.MAX_ITEM:]
     item_length = len(item_sequence)
     pad_length = CFG.MAX_ITEM  # pre-defined by recbole
 
