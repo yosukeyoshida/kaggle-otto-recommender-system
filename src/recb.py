@@ -13,7 +13,8 @@ from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
 from recbole.data.interaction import Interaction
 from recbole.model.sequential_recommender import GRU4Rec
-from recbole.trainer import Trainer
+from recbole.model.general_recommender.recvae import RecVAE
+from recbole.trainer import Trainer, RecVAETrainer
 from recbole.utils import init_seed
 
 import wandb
@@ -139,8 +140,12 @@ def main(cv, output_dir):
 
     print("data_preparation start")
     train_data, valid_data, test_data = data_preparation(config, dataset)
-    model = GRU4Rec(config, train_data.dataset).to(config["device"])
-    trainer = Trainer(config, model)
+    if CFG.model_name == "GRU4Rec":
+        model = GRU4Rec(config, train_data.dataset).to(config["device"])
+        trainer = Trainer(config, model)
+    elif CFG.model_name == "RecVAE":
+        model = RecVAE(config, train_data.dataset).to(config["device"])
+        trainer = RecVAETrainer(config, model)
     print("train start")
     best_valid_score, best_valid_result = trainer.fit(train_data, valid_data)
     del train_data, valid_data
@@ -180,23 +185,24 @@ def main(cv, output_dir):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--type", type=str)
+    parser.add_argument("--model_name", type=str)
+    args = parser.parse_args()
+
+    CFG.model_name = args.model_name
+
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type=CFG.model_name.lower())
         run_name = wandb.run.name
+        wandb.log({"type": args.type})
     if run_name is not None:
         output_dir = os.path.join(f"output/{CFG.model_name.lower()}", run_name)
     else:
         output_dir = f"output/{CFG.model_name.lower()}"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--type", type=str)
-    args = parser.parse_args()
-
-    if CFG.wandb:
-        wandb.log({"type": args.type})
 
     if args.type == "cv":
         main(cv=True, output_dir=os.path.join(output_dir, "cv"))
