@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221212_2/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221212_2/lgbm_test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221222/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221222/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -74,6 +74,7 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
+        NULL AS gru4rec_candidate_num,
 --         NULL AS mf_candidate_num
     FROM aid_list
     GROUP BY session, aid
@@ -103,6 +104,7 @@ WITH aid_list AS (
         MAX(CASE WHEN type = 'carts' THEN rank ELSE NULL END) AS covisit_carts_candidate_num,
         MAX(CASE WHEN type = 'orders' THEN rank ELSE NULL END) AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
+        NULL AS gru4rec_candidate_num,
 --         NULL AS mf_candidate_num
     FROM `kaggle-352109.otto.covisit_cv` -- FIXME
 --     FROM `kaggle-352109.otto.covisit`
@@ -134,9 +136,41 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         rank AS w2v_candidate_num,
+        NULL AS gru4rec_candidate_num,
 --         NULL AS mf_candidate_num
     FROM `kaggle-352109.otto.w2v_cv` -- FIXME
 --     FROM `kaggle-352109.otto.w2v`
+    WHERE aid is not NULL
+), gru4rec AS (
+    SELECT
+        session,
+        aid,
+        NULL AS avg_action_num_reverse_chrono,
+        NULL AS min_action_num_reverse_chrono,
+        NULL AS max_action_num_reverse_chrono,
+        NULL AS avg_sec_since_session_start,
+        NULL AS min_sec_since_session_start,
+        NULL AS max_sec_since_session_start,
+        NULL AS avg_sec_to_session_end,
+        NULL AS min_sec_to_session_end,
+        NULL AS max_sec_to_session_end,
+        NULL AS avg_log_recency_score,
+        NULL AS min_log_recency_score,
+        NULL AS max_log_recency_score,
+        NULL AS avg_type_weighted_log_recency_score,
+        NULL AS min_type_weighted_log_recency_score,
+        NULL AS max_type_weighted_log_recency_score,
+        NULL AS session_aid_clicks_cnt,
+        NULL AS session_aid_carts_cnt,
+        NULL AS session_aid_orders_cnt,
+        NULL AS covisit_clicks_candidate_num,
+        NULL AS covisit_carts_candidate_num,
+        NULL AS covisit_orders_candidate_num,
+        NULL AS w2v_candidate_num,
+        rank AS gru4rec_candidate_num,
+--         NULL AS mf_candidate_num
+    FROM `kaggle-352109.otto.gru4rec_cv` -- FIXME
+--     FROM `kaggle-352109.otto.gru4rec`
     WHERE aid is not NULL
 -- ), mf AS (
 --     SELECT
@@ -164,8 +198,9 @@ WITH aid_list AS (
 --         NULL AS covisit_carts_candidate_num,
 --         NULL AS covisit_orders_candidate_num,
 --         NULL AS w2v_candidate_num,
+--         NULL AS gru4rec_candidate_num,
 --         rank AS mf_candidate_num
---     FROM `kaggle-352109.otto.mf_cv` -- FIXME
+--     FROM `kaggle-352109.otto.mf_cv`
 --     FROM `kaggle-352109.otto.mf`
 --     WHERE aid is not NULL
 ), union_all AS (
@@ -194,6 +229,7 @@ WITH aid_list AS (
         MAX(covisit_carts_candidate_num) AS covisit_carts_candidate_num,
         MAX(covisit_orders_candidate_num) AS covisit_orders_candidate_num,
         MAX(w2v_candidate_num) AS w2v_candidate_num,
+        MAX(gru4rec_candidate_num) AS gru4rec_candidate_num,
 --         MAX(mf_candidate_num) AS mf_candidate_num,
     FROM (
         SELECT * FROM aggregate_by_session_aid
@@ -201,6 +237,8 @@ WITH aid_list AS (
         SELECT * FROM covisit
         UNION ALL
         SELECT * FROM w2v
+        UNION ALL
+        SELECT * FROM gru4rec
 --         UNION ALL
 --         SELECT * FROM mf
     ) t
@@ -399,6 +437,7 @@ SELECT
     sa.covisit_carts_candidate_num,
     sa.covisit_orders_candidate_num,
     sa.w2v_candidate_num,
+    sa.gru4rec_candidate_num,
 --     sa.mf_candidate_num,
     COALESCE(ais.clicks_rank, 1000000) AS clicks_rank,
     COALESCE(ais.carts_rank, 1000000) AS carts_rank,
