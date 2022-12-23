@@ -128,7 +128,7 @@ def run_train(type, output_dir):
     print(train.dtypes)
     # print(train.dtypes)^M
     positives = train.loc[train["gt"] == 1]
-    negatives = train.loc[train["gt"] == 0].sample(frac=0.8)
+    negatives = train.loc[train["gt"] == 0].sample(n=len(positives)*100, random_state=42)
     train = pd.concat([positives, negatives], axis=0, ignore_index=True)
     if CFG.wandb:
         wandb.log({
