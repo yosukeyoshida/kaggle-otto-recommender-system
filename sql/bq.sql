@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221222_3/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221222_3/test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221224/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221224/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -202,9 +202,13 @@ WITH aid_list AS (
     SELECT
         session,
         aid,
+        NULL AS session_aid_last_type,
         NULL AS avg_action_num_reverse_chrono,
         NULL AS min_action_num_reverse_chrono,
         NULL AS max_action_num_reverse_chrono,
+        NULL AS avg_sec_from_last_interaction,
+        NULL AS min_sec_from_last_interaction,
+        NULL AS max_sec_from_last_interaction,
         NULL AS avg_sec_since_session_start,
         NULL AS min_sec_since_session_start,
         NULL AS max_sec_since_session_start,

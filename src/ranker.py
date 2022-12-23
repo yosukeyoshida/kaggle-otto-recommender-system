@@ -18,6 +18,7 @@ class CFG:
     dtypes = {
         "session": "int32",
         "aid": "int32",
+        "session_aid_last_type": "int8",
         "session_clicks_cnt": "int16",
         "session_carts_cnt": "int16",
         "session_orders_cnt": "int16",
@@ -38,6 +39,9 @@ class CFG:
         "avg_action_num_reverse_chrono",
         "min_action_num_reverse_chrono",
         "max_action_num_reverse_chrono",
+        "avg_sec_from_last_interaction",
+        "min_sec_from_last_interaction",
+        "max_sec_from_last_interaction",
         "avg_sec_since_session_start",
         "min_sec_since_session_start",
         "max_sec_since_session_start",
