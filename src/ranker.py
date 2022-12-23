@@ -132,9 +132,8 @@ def run_train(type, output_dir):
     train = pd.concat([positives, negatives], axis=0, ignore_index=True)
     if CFG.wandb:
         wandb.log({
-            "train total size": len(train),
-            "train positive size": len(positives),
-            "train negative size": len(negatives),
+            f"[{type}] train positive size": len(positives),
+            f"[{type}] train negative size": len(negatives),
         })
     del positives, negatives
     gc.collect()
