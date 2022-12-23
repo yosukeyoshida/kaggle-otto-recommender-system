@@ -42,15 +42,15 @@ def load_test(cv: bool):
     return df
 
 
-def suggest_clicks(df, top_n_clicks):
+def suggest_clicks(df, top_n_clicks, top_clicks):
     aids = df.aid.tolist()
     unique_aids = list(dict.fromkeys(aids[::-1]))
     aids2 = list(itertools.chain(*[top_n_clicks[aid] for aid in unique_aids if aid in top_n_clicks]))
     top_aids2 = [aid2 for aid2, cnt in Counter(aids2).most_common(CFG.candidates_num)]
-    return top_aids2
+    return top_aids2 + top_clicks[:CFG.candidates_num-len(top_aids2)]
 
 
-def suggest_buys(df, top_n_buy2buy, top_n_buys):
+def suggest_buys(df, top_n_buy2buy, top_n_buys, top_orders):
     aids = df.aid.tolist()
     unique_aids = list(dict.fromkeys(aids[::-1]))
     df = df.loc[(df["type"] == "carts") | (df["type"] == "orders")]
@@ -58,7 +58,7 @@ def suggest_buys(df, top_n_buy2buy, top_n_buys):
     aids2 = list(itertools.chain(*[top_n_buys[aid] for aid in unique_aids if aid in top_n_buys]))
     aids3 = list(itertools.chain(*[top_n_buy2buy[aid] for aid in unique_buys if aid in top_n_buy2buy]))
     top_aids2 = [aid2 for aid2, cnt in Counter(aids2 + aids3).most_common(CFG.candidates_num)]
-    return top_aids2
+    return top_aids2 + top_orders[:CFG.candidates_num-len(top_aids2)]
 
 
 def read_file(f):
@@ -265,11 +265,14 @@ def main(cv: bool, output_dir: str, **kwargs):
         top_n_buys.update(pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_carts_orders}_carts_orders_{k}.pkl"), "rb")))
     top_n_buy2buy = pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_buy2buy}_buy2buy_0.pkl"), "rb"))
 
+    top_clicks = test_df.loc[test_df['type'] == 'clicks', 'aid'].value_counts().index.values[:CFG.candidates_num]
+    top_orders = test_df.loc[test_df['type'] == 'orders', 'aid'].value_counts().index.values[:CFG.candidates_num]
+
     # suggest clicks
     pred_df_clicks = (
         test_df.sort_values(["session", "ts"])
         .groupby(["session"])
-        .apply(lambda x: suggest_clicks(x, top_n_clicks))
+        .apply(lambda x: suggest_clicks(x, top_n_clicks, top_clicks))
         .to_frame()
         .rename(columns={0: "labels"})
     )
@@ -280,7 +283,7 @@ def main(cv: bool, output_dir: str, **kwargs):
 
     # suggest buys
     pred_df_buys = (
-        (test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys)))
+        (test_df.sort_values(["session", "ts"]).groupby(["session"]).apply(lambda x: suggest_buys(x, top_n_buy2buy, top_n_buys, top_orders)))
         .to_frame()
         .rename(columns={0: "labels"})
     )
