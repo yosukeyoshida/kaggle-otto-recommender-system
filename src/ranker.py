@@ -192,7 +192,9 @@ def run_train(type, output_dir):
         print("train start")
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
         print("train end")
-        log_summary(ranker, save_model_checkpoint=True)
+        # log_summary(ranker, save_model_checkpoint=True)
+        if CFG.wandb:
+            wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
         dump_pickle(os.path.join(output_dir, f"ranker_{type}.pkl"), ranker)
         X_valid = X_valid.sort_values(["session", "aid"])
         scores = ranker.predict(X_valid[feature_cols])
