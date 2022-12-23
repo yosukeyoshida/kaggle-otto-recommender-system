@@ -265,8 +265,8 @@ def main(cv: bool, output_dir: str, **kwargs):
         top_n_buys.update(pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_carts_orders}_carts_orders_{k}.pkl"), "rb")))
     top_n_buy2buy = pickle.load(open(os.path.join(output_dir, f"top_{CFG.top_n_buy2buy}_buy2buy_0.pkl"), "rb"))
 
-    top_clicks = test_df.loc[test_df['type'] == 'clicks', 'aid'].value_counts().index.values[:CFG.candidates_num]
-    top_orders = test_df.loc[test_df['type'] == 'orders', 'aid'].value_counts().index.values[:CFG.candidates_num]
+    top_clicks = test_df.loc[test_df['type'] == 'clicks', 'aid'].value_counts().index.values[:CFG.candidates_num].tolist()
+    top_orders = test_df.loc[test_df['type'] == 'orders', 'aid'].value_counts().index.values[:CFG.candidates_num].tolist()
 
     # suggest clicks
     pred_df_clicks = (
