@@ -55,7 +55,7 @@ class CFG:
         "covisit_orders_candidate_num",
         "w2v_candidate_num",
         "gru4rec_candidate_num",
-        # "mf_candidate_num",
+        "narm_candidate_num",
         "session_clicks_carts_ratio",
         "session_carts_orders_ratio",
         "session_clicks_orders_ratio",
@@ -128,7 +128,7 @@ def run_train(type, output_dir):
     print(train.dtypes)
     # print(train.dtypes)^M
     positives = train.loc[train["gt"] == 1]
-    negatives = train.loc[train["gt"] == 0].sample(frac=0.8)
+    negatives = train.loc[train["gt"] == 0].sample(n=len(positives)*80, random_state=42)
     train = pd.concat([positives, negatives], axis=0, ignore_index=True)
     if CFG.wandb:
         wandb.log({
@@ -192,7 +192,9 @@ def run_train(type, output_dir):
         print("train start")
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
         print("train end")
-        log_summary(ranker, save_model_checkpoint=True)
+        # log_summary(ranker, save_model_checkpoint=True)
+        if CFG.wandb:
+            wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
         dump_pickle(os.path.join(output_dir, f"ranker_{type}.pkl"), ranker)
         X_valid = X_valid.sort_values(["session", "aid"])
         scores = ranker.predict(X_valid[feature_cols])
