@@ -1,14 +1,16 @@
-from annoy import AnnoyIndex
-import polars as pl
 import os
+
 import pandas as pd
+import polars as pl
 import torch
+from annoy import AnnoyIndex
 from merlin.io import Dataset
 from merlin.loader.torch import Loader
 from torch import nn
 from torch.optim import SparseAdam
-from util import calc_metrics, dump_pickle
+
 import wandb
+from util import calc_metrics, dump_pickle
 
 
 class CFG:
@@ -33,7 +35,8 @@ class MatrixFactorization(nn.Module):
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
-    def __init__(self, name, fmt=':f'):
+
+    def __init__(self, name, fmt=":f"):
         self.name = name
         self.fmt = fmt
         self.reset()
@@ -51,7 +54,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
     def __str__(self):
-        fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
+        fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
         return fmtstr.format(**self.__dict__)
 
 
@@ -63,13 +66,15 @@ def main(cv, output_dir):
         train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     train = pl.read_parquet(train_file_path)
-    train_pairs = (train.groupby('session').agg([pl.col('aid'), pl.col('aid').shift(-1).alias('aid_next')]).explode(['aid', 'aid_next']).drop_nulls())[['aid', 'aid_next']]
-    cardinality_aids = max(train_pairs['aid'].max(), train_pairs['aid_next'].max())
+    train_pairs = (
+        train.groupby("session").agg([pl.col("aid"), pl.col("aid").shift(-1).alias("aid_next")]).explode(["aid", "aid_next"]).drop_nulls()
+    )[["aid", "aid_next"]]
+    cardinality_aids = max(train_pairs["aid"].max(), train_pairs["aid_next"].max())
 
-    train_pairs[:-10_000_000].to_pandas().to_parquet(os.path.join(output_dir, 'train_pairs.parquet'))
-    train_pairs[-10_000_000:].to_pandas().to_parquet(os.path.join(output_dir, 'valid_pairs.parquet'))
+    train_pairs[:-10_000_000].to_pandas().to_parquet(os.path.join(output_dir, "train_pairs.parquet"))
+    train_pairs[-10_000_000:].to_pandas().to_parquet(os.path.join(output_dir, "valid_pairs.parquet"))
 
-    train_ds = Dataset(os.path.join(output_dir, 'train_pairs.parquet'), cpu=True)
+    train_ds = Dataset(os.path.join(output_dir, "train_pairs.parquet"), cpu=True)
     train_dl_merlin = Loader(train_ds, 65536, True)
 
     valid_ds = Dataset(os.path.join(output_dir, "valid_pairs.parquet"), cpu=True)
@@ -114,13 +119,13 @@ def main(cv, output_dir):
     dump_pickle(os.path.join(output_dir, "model.pkl"), model)
     embeddings = model.aid_factors.weight.detach().cpu().numpy()
 
-    index = AnnoyIndex(32, 'angular')
+    index = AnnoyIndex(32, "angular")
     for i, v in enumerate(embeddings):
         index.add_item(i, v)
 
     index.build(50)
     test = pl.read_parquet(test_file_path)
-    test_session_AIDs = test.to_pandas().reset_index(drop=True).groupby('session')['aid'].apply(list)
+    test_session_AIDs = test.to_pandas().reset_index(drop=True).groupby("session")["aid"].apply(list)
     dump_pickle(os.path.join(output_dir, "test_session_AIDs.pkl"), test_session_AIDs)
     labels = []
     print("inference start")

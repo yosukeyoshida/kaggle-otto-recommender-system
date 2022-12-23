@@ -1,8 +1,9 @@
 import os
 import pickle
-import wandb
 
 import pandas as pd
+
+import wandb
 
 
 def dump_pickle(path, o):

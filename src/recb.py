@@ -1,7 +1,7 @@
-import gc
 import argparse
-import pickle
+import gc
 import os
+import pickle
 from typing import Any, List
 
 import numpy as np
@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
 from recbole.data.interaction import Interaction
-from recbole.utils import init_seed, get_model, get_trainer
+from recbole.utils import get_model, get_trainer, init_seed
 
 import wandb
 from word2vec import calc_metrics, dump_pickle
@@ -38,7 +38,7 @@ class RecommendedItems(BaseModel):
 
 def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
     item_history_dict = item_history.dict()
-    item_sequence = item_history_dict["sequence"][-CFG.MAX_ITEM:]
+    item_sequence = item_history_dict["sequence"][-CFG.MAX_ITEM :]
     item_length = len(item_sequence)
     pad_length = CFG.MAX_ITEM  # pre-defined by recbole
 
