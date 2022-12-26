@@ -198,7 +198,7 @@ def run_train(type, output_dir):
         # log_summary(ranker, save_model_checkpoint=True)
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
-        dump_pickle(os.path.join(output_dir, f"ranker_{type}.pkl"), ranker)
+        dump_pickle(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), ranker)
         X_valid = X_valid.sort_values(["session", "aid"])
         scores = ranker.predict(X_valid[feature_cols])
         del ranker
@@ -212,13 +212,13 @@ def run_train(type, output_dir):
         del X_valid, train_labels
         gc.collect()
         joined = joined[joined["ground_truth"].notnull()]
+        dump_pickle(os.path.join(output_dir, f"preds_{type}_fold{fold}.pkl"), ranker)
         joined["hits"] = joined.apply(lambda df: len(set(df.aid).intersection(set(df.ground_truth))), axis=1)
         joined["gt_count"] = joined.ground_truth.str.len().clip(0, 20)
         joined["recall"] = joined["hits"] / joined["gt_count"]
         recall = joined["hits"].sum() / joined["gt_count"].sum()
-        break
     if CFG.wandb:
-        wandb.log({f"{type} recall": recall})
+        wandb.log({f"[{type}][fold{fold}] recall": recall})
     return recall
 
 
@@ -293,11 +293,11 @@ def main():
     clicks_recall = run_train("clicks", output_dir)
     carts_recall = run_train("carts", output_dir)
     orders_recall = run_train("orders", output_dir)
-    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    if CFG.wandb:
-        wandb.log({"total recall": total_recall})
-    run_inference(output_dir)
+    # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+    # if CFG.wandb:
+    #     wandb.log({"total recall": total_recall})
+    # run_inference(output_dir)
 
 
 if __name__ == "__main__":
