@@ -121,6 +121,8 @@ def main(cv, output_dir):
         "save_dataset": True,
         "save_dataloaders": True,
         "checkpoint_dir": os.path.join(output_dir, "checkpoint"),
+        "log_wandb": True,
+        "wandb_project": "kaggle-otto",
     }
 
     config = Config(model=CFG.model_name, dataset="recbox_data", config_dict=parameter_dict)
