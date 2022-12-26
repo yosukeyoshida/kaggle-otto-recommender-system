@@ -147,12 +147,13 @@ def run_train(type, output_dir):
     train = train[feature_cols + ["session"]]
     print(f"train shape: {train.shape}")
 
+    train_labels = train_labels.groupby("session")["aid"].apply(list).to_frame()
+    train_labels = train_labels.rename(columns={"aid": "ground_truth"})
+
     kf = GroupKFold(n_splits=5)
     for fold, (train_indices, valid_indices) in enumerate(kf.split(train, targets, group)):
         X_train, X_valid = train.loc[train_indices], train.loc[valid_indices]
         y_train, y_valid = targets.loc[train_indices], targets.loc[valid_indices]
-        del train, targets, group
-        gc.collect()
 
         X_train = X_train.sort_values(["session", "aid"])
         y_train = y_train.loc[X_train.index]
@@ -163,8 +164,6 @@ def run_train(type, output_dir):
         session_lengths_train = session_length["session_length"].values
         X_train = X_train.merge(session_length, on="session")
         X_train["session_length"] = X_train["session_length"].astype("int16")
-        del session_length
-        gc.collect()
 
         session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_valid = session_length["session_length"].values
@@ -206,20 +205,17 @@ def run_train(type, output_dir):
         X_valid["score"] = scores
         X_valid = X_valid.sort_values(["session", "score"]).groupby("session").tail(20)
         X_valid = X_valid.groupby("session")["aid"].apply(list).to_frame()
-        train_labels = train_labels.groupby("session")["aid"].apply(list).to_frame()
-        train_labels = train_labels.rename(columns={"aid": "ground_truth"})
         joined = X_valid.merge(train_labels, how="left", on=["session"])
-        del X_valid, train_labels
+        del X_valid
         gc.collect()
         joined = joined[joined["ground_truth"].notnull()]
-        dump_pickle(os.path.join(output_dir, f"preds_{type}_fold{fold}.pkl"), ranker)
         joined["hits"] = joined.apply(lambda df: len(set(df.aid).intersection(set(df.ground_truth))), axis=1)
         joined["gt_count"] = joined.ground_truth.str.len().clip(0, 20)
         joined["recall"] = joined["hits"] / joined["gt_count"]
+        dump_pickle(os.path.join(output_dir, f"preds_{type}_fold{fold}.pkl"), joined)
         recall = joined["hits"].sum() / joined["gt_count"].sum()
-    if CFG.wandb:
-        wandb.log({f"[{type}][fold{fold}] recall": recall})
-    return recall
+        if CFG.wandb:
+            wandb.log({f"[{type}][fold{fold}] recall": recall})
 
 
 def cast_cols(df):
@@ -290,9 +286,9 @@ def main():
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir)
-    carts_recall = run_train("carts", output_dir)
-    orders_recall = run_train("orders", output_dir)
+    run_train("clicks", output_dir)
+    run_train("carts", output_dir)
+    run_train("orders", output_dir)
     # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     # if CFG.wandb:
