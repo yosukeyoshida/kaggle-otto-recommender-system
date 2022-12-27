@@ -142,7 +142,7 @@ def run_train(type, output_dir, single_fold):
     del positives, negatives
     gc.collect()
 
-    feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
+    feature_cols = train.drop(columns=["gt", "type", "session", "aid"]).columns.tolist()
     targets = train["gt"]
     group = train["session"]
     train = train[feature_cols + ["session"]]
@@ -253,7 +253,7 @@ def run_inference(output_dir, single_fold):
         test = pd.concat(dfs)
         del dfs
         gc.collect()
-        feature_cols = test.drop(columns=["session"]).columns.tolist()
+        feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
             print(f"type={type}")
             pred_folds = []
