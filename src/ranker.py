@@ -247,13 +247,24 @@ def run_inference(output_dir):
         gc.collect()
         feature_cols = test.drop(columns=["session"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
-            ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}.pkl"), "rb"))
-            pred = test[["session", "aid"]]
-            pred["score"] = ranker.predict(test[feature_cols])
-            pred["score"] = pred["score"].astype("float16")
-            pred["type"] = type
+            print(f"type={type}")
+            pred_folds = []
+            for fold in range(5):
+                print(f"fold={fold}")
+                ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), "rb"))
+                pred = test[["session", "aid"]]
+                pred["score"] = ranker.predict(test[feature_cols])
+                pred["score"] = pred["score"].astype("float16")
+                pred["type"] = type
+                pred_folds.append(pred)
+                del pred, ranker
+                gc.collect()
+            pred = pred_folds[0]
+            for pf in pred_folds[1:]:
+                pred["score"] += pf["score"]
+            pred["score"] = pred["score"] / 5
             preds.append(pred)
-            del pred, ranker
+            del pred_folds
             gc.collect()
         del test
         gc.collect()
@@ -301,4 +312,5 @@ if __name__ == "__main__":
     parser.add_argument("--num_iterations", type=int, default=200)
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
-    main()
+    # main()
+    run_inference(output_dir="./output/lgbm/woven-elevator-414")
