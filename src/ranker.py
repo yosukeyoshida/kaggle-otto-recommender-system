@@ -15,6 +15,7 @@ import wandb
 class CFG:
     wandb = True
     num_iterations = 200
+    n_folds = 5
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -115,7 +116,7 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, output_dir):
+def run_train(type, output_dir, single_fold):
     train = read_files("./input/lgbm_dataset/*")
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
@@ -150,7 +151,8 @@ def run_train(type, output_dir):
     train_labels = train_labels.groupby("session")["aid"].apply(list).to_frame()
     train_labels = train_labels.rename(columns={"aid": "ground_truth"})
 
-    kf = GroupKFold(n_splits=5)
+    dfs = []
+    kf = GroupKFold(n_splits=CFG.n_folds)
     for fold, (train_indices, valid_indices) in enumerate(kf.split(train, targets, group)):
         X_train, X_valid = train.loc[train_indices], train.loc[valid_indices]
         y_train, y_valid = targets.loc[train_indices], targets.loc[valid_indices]
@@ -216,6 +218,12 @@ def run_train(type, output_dir):
         recall = joined["hits"].sum() / joined["gt_count"].sum()
         if CFG.wandb:
             wandb.log({f"[{type}][fold{fold}] recall": recall})
+        dfs.append(joined)
+        if single_fold:
+            break
+    joined = pd.concat(dfs)
+    recall = joined["hits"].sum() / joined["gt_count"].sum()
+    return recall
 
 
 def cast_cols(df):
@@ -231,7 +239,7 @@ def split_list(l, n):
         yield l[idx : idx + n]
 
 
-def run_inference(output_dir):
+def run_inference(output_dir, single_fold):
     path = "./input/lgbm_dataset_test/*"
     files = glob.glob(path)
     preds = []
@@ -249,7 +257,7 @@ def run_inference(output_dir):
         for type in ["clicks", "carts", "orders"]:
             print(f"type={type}")
             pred_folds = []
-            for fold in range(5):
+            for fold in range(CFG.n_folds):
                 print(f"fold={fold}")
                 ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), "rb"))
                 pred = test[["session", "aid"]]
@@ -262,10 +270,13 @@ def run_inference(output_dir):
             pred = pred_folds[0]
             for pf in pred_folds[1:]:
                 pred["score"] += pf["score"]
-            pred["score"] = pred["score"] / 5
+            if not single_fold:
+                pred["score"] = pred["score"] / CFG.n_folds
             preds.append(pred)
             del pred_folds
             gc.collect()
+            if single_fold:
+                break
         del test
         gc.collect()
     preds = pd.concat(preds)
@@ -286,7 +297,7 @@ def run_inference(output_dir):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main():
+def main(single_fold):
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="ranker")
@@ -297,20 +308,20 @@ def main():
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    run_train("clicks", output_dir)
-    run_train("carts", output_dir)
-    run_train("orders", output_dir)
-    # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    # if CFG.wandb:
-    #     wandb.log({"total recall": total_recall})
-    # run_inference(output_dir)
+    clicks_recall = run_train("clicks", output_dir, single_fold)
+    carts_recall = run_train("carts", output_dir, single_fold)
+    orders_recall = run_train("orders", output_dir, single_fold)
+    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+    if CFG.wandb:
+        wandb.log({"total recall": total_recall})
+    run_inference(output_dir, single_fold)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_iterations", type=int, default=200)
+    parser.add_argument("--single_fold", action='store_true')
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
-    # main()
-    run_inference(output_dir="./output/lgbm/woven-elevator-414")
+    main(args.single_fold)
