@@ -267,16 +267,16 @@ def run_inference(output_dir, single_fold):
                 pred_folds.append(pred)
                 del pred, ranker
                 gc.collect()
+                if single_fold:
+                    break
             pred = pred_folds[0]
-            for pf in pred_folds[1:]:
-                pred["score"] += pf["score"]
             if not single_fold:
-                pred["score"] = pred["score"] / CFG.n_folds
+                for pf in pred_folds[1:]:
+                    pred["score"] += pf["score"]
+                    pred["score"] = pred["score"] / CFG.n_folds
             preds.append(pred)
             del pred_folds
             gc.collect()
-            if single_fold:
-                break
         del test
         gc.collect()
     preds = pd.concat(preds)
