@@ -6,3 +6,4 @@ cufile.log
 __pycache__
 log
 log_tensorboard
+input
