@@ -1,4 +1,5 @@
 import argparse
+import math
 import gc
 import os
 import pickle
@@ -72,13 +73,17 @@ def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
 
 def main(cv, output_dir):
     if cv:
-        train_file_path = "./input/otto-validation/test_parquet/*"
+        train_file_path = "./input/otto-validation/*_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
     else:
-        train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+        train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     if not CFG.use_saved_dataset:
-        _train = pl.read_parquet(train_file_path).to_pandas()
+        _train = pl.read_parquet(train_file_path)
+        sessions = _train["session"].unique()
+        sample_sessions = sessions.sample(frac=0.05)
+        _train = _train.filter(pl.col("session").is_in(sample_sessions))
+        _train = _train.to_pandas()
         _train["session"] = _train["session"].astype("int32")
         _train["aid"] = _train["aid"].astype("int32")
         _train["ts"] = (_train["ts"] / 1000).astype("int32")
@@ -90,11 +95,6 @@ def main(cv, output_dir):
         # test = pl.from_pandas(_test)
         # train = pl.concat([train, test])
         print(f"train shape: {train.shape}")
-        # sessions = train["session"].unique()
-        # sample_size = math.floor(len(sessions) * 0.2)
-        # sample_sessions = sessions.sample(sample_size)
-        # train = train.filter(pl.col("session").is_in(sample_sessions))
-        # print(f"sample train shape: {train.shape}")
         train = train.sort(["session", "aid", "ts"])
         train = train.with_columns((pl.col("ts") * 1e9).alias("ts"))
         train = train.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
@@ -109,12 +109,13 @@ def main(cv, output_dir):
         "USER_ID_FIELD": "session",
         "ITEM_ID_FIELD": "aid",
         "TIME_FIELD": "ts",
-        # "user_inter_num_interval": "[5,inf)",
-        # "item_inter_num_interval": "[5,inf)",
+        "user_inter_num_interval": "[5,inf)",
+        "item_inter_num_interval": "[5,inf)",
         "load_col": {"inter": ["session", "aid", "ts"]},
         "train_neg_sample_args": None,
         "epochs": 10,
         "stopping_step": 3,
+        "train_batch_size": 2048,
         "eval_batch_size": 1024,
         "MAX_ITEM_LIST_LENGTH": CFG.MAX_ITEM,
         "eval_args": {"split": {"RS": [9, 1, 0]}, "group_by": "user", "order": "TO", "mode": "full"},
@@ -151,13 +152,17 @@ def main(cv, output_dir):
     labels = []
     dump_pickle(os.path.join(output_dir, "model.pkl"), model)
     dump_pickle(os.path.join(output_dir, "test_session_AIDs.pkl"), test_session_AIDs)
-    # model = pickle.load(open(os.path.join(output_dir, "model.pkl"), "rb"))
-    # dataset = pickle.load(open(os.path.join(output_dir, "checkpoint/recbox_data-dataset.pth"), "rb"))
+    # output_dir2 = "output/gru4rec/crisp-glitter-347/cv/"
+    # model2 = pickle.load(open(os.path.join(output_dir2, "model.pkl"), "rb"))
+    # dataset2 = pickle.load(open(os.path.join(output_dir2, "checkpoint/recbox_data-dataset.pth"), "rb"))
     # test_session_AIDs = pickle.load(open(os.path.join(output_dir, "test_session_AIDs.pkl"), "rb"))
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs))
         item = ItemHistory(sequence=AIDs, topk=CFG.candidates_num)
-        nns = pred_user_to_item(item, dataset, model)["item_list"]
+        try:
+            nns = pred_user_to_item(item, dataset, model)["item_list"]
+        except:
+            nns = []
         labels.append(nns)
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
