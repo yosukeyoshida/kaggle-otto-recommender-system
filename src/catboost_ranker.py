@@ -13,8 +13,7 @@ import wandb
 
 
 class CFG:
-    wandb = False
-    num_iterations = 200
+    wandb = True
     n_folds = 5
     dtypes = {
         "session": "int32",
@@ -302,12 +301,12 @@ def run_inference(output_dir, single_fold):
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker")
+        wandb.init(project="kaggle-otto", job_type="catboost_ranker")
         run_name = wandb.run.name
     if run_name is not None:
-        output_dir = os.path.join("output/lgbm", run_name)
+        output_dir = os.path.join("output/catboost", run_name)
     else:
-        output_dir = "output/lgbm"
+        output_dir = "output/catboost"
     os.makedirs(output_dir, exist_ok=True)
 
     clicks_recall = run_train("clicks", output_dir, single_fold)
@@ -322,8 +321,6 @@ def main(single_fold):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_iterations", type=int, default=200)
     parser.add_argument("--single_fold", action='store_true')
     args = parser.parse_args()
-    CFG.num_iterations = args.num_iterations
     main(args.single_fold)
