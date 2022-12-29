@@ -71,7 +71,7 @@ def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
     return recommended_items
 
 
-def main(cv, output_dir):
+def main(cv, output_dir, seed):
     if cv:
         train_file_path = "./input/otto-validation/*_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
@@ -81,7 +81,7 @@ def main(cv, output_dir):
     if not CFG.use_saved_dataset:
         _train = pl.read_parquet(train_file_path)
         sessions = _train["session"].unique()
-        sample_sessions = sessions.sample(frac=0.05)
+        sample_sessions = sessions.sample(n=2000000, seed=seed)
         _train = _train.filter(pl.col("session").is_in(sample_sessions))
         _train = _train.to_pandas()
         _train["session"] = _train["session"].astype("int32")
@@ -188,6 +188,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--type", type=str)
     parser.add_argument("--model_name", type=str)
+    parser.add_argument("--seed", type=int)
     args = parser.parse_args()
 
     CFG.model_name = args.model_name
@@ -196,7 +197,7 @@ if __name__ == "__main__":
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type=CFG.model_name.lower())
         run_name = wandb.run.name
-        wandb.log({"type": args.type})
+        wandb.log({"type": args.type, "seed": args.seed})
     if run_name is not None:
         output_dir = os.path.join(f"output/{CFG.model_name.lower()}", run_name)
     else:
@@ -205,6 +206,6 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
 
     if args.type == "cv":
-        main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+        main(cv=True, output_dir=os.path.join(output_dir, "cv"), seed=args.seed)
     elif args.type == "sub":
-        main(cv=False, output_dir=output_dir)
+        main(cv=False, output_dir=output_dir, seed=args.seed)
