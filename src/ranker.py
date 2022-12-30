@@ -160,6 +160,8 @@ def run_train(type, output_dir, single_fold):
     gc.collect()
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
+    if CFG.wandb:
+        wandb.log({f"feature size": len(feature_cols)})
     targets = train["gt"]
     group = train["session"]
     train = train[feature_cols + ["session"]]
@@ -181,13 +183,9 @@ def run_train(type, output_dir, single_fold):
 
         session_length = X_train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_train = session_length["session_length"].values
-        X_train = X_train.merge(session_length, on="session")
-        X_train["session_length"] = X_train["session_length"].astype("int16")
 
         session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_valid = session_length["session_length"].values
-        X_valid = X_valid.merge(session_length, on="session")
-        X_valid["session_length"] = X_valid["session_length"].astype("int16")
         del session_length
         gc.collect()
 
