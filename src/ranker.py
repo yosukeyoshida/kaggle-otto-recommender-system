@@ -34,6 +34,9 @@ class CFG:
         "clicks_uu_rank": "int32",
         "carts_uu_rank": "int32",
         "orders_uu_rank": "int32",
+        "session_length": "int16",
+        "session_aid_length": "int16",
+        "session_aid_interaction_cnt": "int16",
     }
     float_cols = [
         "avg_action_num_reverse_chrono",
@@ -88,6 +91,18 @@ class CFG:
         "avg_sec_session_carts_orders",
         "min_sec_session_carts_orders",
         "max_sec_session_carts_orders",
+        "session_length_clicks_ratio",
+        "session_length_carts_ratio",
+        "session_length_orders_ratio",
+        "session_aid_length_clicks_unique_aid_ratio",
+        "session_aid_length_carts_unique_aid_ratio",
+        "session_aid_length_orders_unique_aid_ratio",
+        "session_clicks_carts_unique_ratio",
+        "session_carts_orders_unique_ratio",
+        "session_clicks_orders_unique_ratio",
+        "session_aid_interaction_clicks_ratio",
+        "session_aid_interaction_carts_ratio",
+        "session_aid_interaction_orders_ratio",
     ]
 
 
@@ -131,7 +146,6 @@ def run_train(type, output_dir, single_fold):
     train["gt"] = train["gt"].astype("int8")
     train = train.reset_index(drop=True)
     print(train.dtypes)
-    # print(train.dtypes)^M
     positives = train.loc[train["gt"] == 1]
     negatives = train.loc[train["gt"] == 0].sample(n=len(positives) * 80, random_state=42)
     train = pd.concat([positives, negatives], axis=0, ignore_index=True)
