@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import torch
+import wandb
 from pydantic import BaseModel
 from recbole.config import Config
 from recbole.data import create_dataset, data_preparation
 from recbole.data.interaction import Interaction
 from recbole.utils import get_model, get_trainer, init_seed
 
-import wandb
 from word2vec import calc_metrics, dump_pickle
 
 

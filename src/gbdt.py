@@ -6,10 +6,9 @@ import pickle
 
 import lightgbm as lgb
 import pandas as pd
+import wandb
 from sklearn.model_selection import GroupKFold
 from wandb.lightgbm import log_summary, wandb_callback
-
-import wandb
 
 
 class CFG:
@@ -165,14 +164,14 @@ def run_train(type, output_dir, single_fold):
         X_train = X_train[feature_cols]
 
         params = {
-            'boosting_type': 'gbdt',  # default = 'gbdt'
-            'num_leaves': 63,  # default = 31,
-            'learning_rate': 0.01,  # default = 0.1
-            'feature_fraction': 0.8,  # default = 1.0
-            'bagging_freq': 1,  # default = 0
-            'bagging_fraction': 0.8,  # default = 1.0
-            'random_state': 0,  # default = None
-            'n_estimators': 2000,
+            "boosting_type": "gbdt",  # default = 'gbdt'
+            "num_leaves": 63,  # default = 31,
+            "learning_rate": 0.01,  # default = 0.1
+            "feature_fraction": 0.8,  # default = 1.0
+            "bagging_freq": 1,  # default = 0
+            "bagging_fraction": 0.8,  # default = 1.0
+            "random_state": 0,  # default = None
+            "n_estimators": 2000,
         }
         _train = lgb.Dataset(X_train, y_train)
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train)
@@ -307,7 +306,7 @@ def main(single_fold):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_iterations", type=int, default=200)
-    parser.add_argument("--single_fold", action='store_true')
+    parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
     main(args.single_fold)

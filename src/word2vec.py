@@ -3,10 +3,10 @@ import os
 from collections import Counter
 
 import pandas as pd
+import wandb
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
 
-import wandb
 from util import calc_metrics, dump_pickle
 
 

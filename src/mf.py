@@ -3,13 +3,13 @@ import os
 import pandas as pd
 import polars as pl
 import torch
+import wandb
 from annoy import AnnoyIndex
 from merlin.io import Dataset
 from merlin.loader.torch import Loader
 from torch import nn
 from torch.optim import SparseAdam
 
-import wandb
 from util import calc_metrics, dump_pickle
 
 

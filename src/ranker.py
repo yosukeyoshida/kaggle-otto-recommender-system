@@ -6,10 +6,9 @@ import pickle
 
 import lightgbm as lgb
 import pandas as pd
+import wandb
 from sklearn.model_selection import GroupKFold
 from wandb.lightgbm import log_summary, wandb_callback
-
-import wandb
 
 
 class CFG:
@@ -321,7 +320,7 @@ def main(single_fold):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_iterations", type=int, default=200)
-    parser.add_argument("--single_fold", action='store_true')
+    parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
     main(args.single_fold)
