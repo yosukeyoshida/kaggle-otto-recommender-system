@@ -228,6 +228,9 @@ def run_inference(output_dir, single_fold):
             df = cast_cols(df)
             dfs.append(df)
         test = pd.concat(dfs)
+        session_length = test.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
+        session_lengths_test = session_length["session_length"].values
+        test = test.merge(session_lengths_test, on="session")
         del dfs
         gc.collect()
         feature_cols = test.drop(columns=["session"]).columns.tolist()
