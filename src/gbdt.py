@@ -162,39 +162,25 @@ def run_train(type, output_dir, single_fold):
         X_valid = X_valid.sort_values(["session", "aid"])
         y_valid = y_valid.loc[X_valid.index]
 
-        session_length = X_train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-        session_lengths_train = session_length["session_length"].values
-        X_train = X_train.merge(session_length, on="session")
-        X_train["session_length"] = X_train["session_length"].astype("int16")
-
-        session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-        session_lengths_valid = session_length["session_length"].values
-        X_valid = X_valid.merge(session_length, on="session")
-        X_valid["session_length"] = X_valid["session_length"].astype("int16")
-        del session_length
-        gc.collect()
-
         X_train = X_train[feature_cols]
-        # X_valid = X_valid[feature_cols]
 
         params = {
-            "objective": "lambdarank",
-            "metric": "ndcg",
-            "boosting_type": "gbdt",
-            # 'lambdarank_truncation_level': 10,
-            # 'ndcg_eval_at': [10, 5, 20],
-            "num_iterations": CFG.num_iterations,
-            "random_state": 42,
-            # "bagging_fraction": 0.5,
-            # "bagging_freq": 10,
+            'boosting_type': 'gbdt',  # default = 'gbdt'
+            'num_leaves': 63,  # default = 31,
+            'learning_rate': 0.01,  # default = 0.1
+            'feature_fraction': 0.8,  # default = 1.0
+            'bagging_freq': 1,  # default = 0
+            'bagging_fraction': 0.8,  # default = 1.0
+            'random_state': 0,  # default = None
+            'n_estimators': 2000,
         }
-        _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
-        _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
-        del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
+        _train = lgb.Dataset(X_train, y_train)
+        _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train)
+        del X_train, y_train, y_valid
         gc.collect()
         # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=100, verbose=True)])
         print("train end")
         # log_summary(ranker, save_model_checkpoint=True)
         if CFG.wandb:
