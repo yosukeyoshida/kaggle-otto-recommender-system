@@ -1,3 +1,2 @@
-python src/recb.py --model_name GRU4Rec --type cv --seed 3
-python src/recb.py --model_name GRU4Rec --type cv --seed 4
-python src/recb.py --model_name GRU4Rec --type cv --seed 5
+python src/recb.py --model_name GRU4Rec --type sub --seed 2
+python src/recb.py --model_name GRU4Rec --type sub --seed 3
