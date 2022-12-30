@@ -18,7 +18,6 @@ class CFG:
     dtypes = {
         "session": "int32",
         "aid": "int32",
-        "session_aid_last_type": "int8",
         "session_clicks_cnt": "int16",
         "session_carts_cnt": "int16",
         "session_orders_cnt": "int16",
@@ -111,6 +110,7 @@ def read_files(path):
 
     for file in glob.glob(path):
         df = pd.read_parquet(file)
+        df = df.drop(columns=["session_aid_last_type"])
         for col, dtype in CFG.dtypes.items():
             df[col] = df[col].astype(dtype)
         for col in CFG.float_cols:
