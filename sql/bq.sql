@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221224/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221224/test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221231/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221231/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
