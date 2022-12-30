@@ -91,6 +91,9 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS session_clicks_rank,
+        NULL AS session_carts_rank,
+        NULL AS session_orders_rank
     FROM aid_list
     GROUP BY session, aid
 ), covisit AS (
@@ -130,6 +133,9 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS session_clicks_rank,
+        NULL AS session_carts_rank,
+        NULL AS session_orders_rank
     FROM `kaggle-352109.otto.covisit_cv` -- FIXME
 --     FROM `kaggle-352109.otto.covisit`
     WHERE aid is not NULL
@@ -171,6 +177,9 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS session_clicks_rank,
+        NULL AS session_carts_rank,
+        NULL AS session_orders_rank
     FROM `kaggle-352109.otto.w2v_cv` -- FIXME
 --     FROM `kaggle-352109.otto.w2v`
     WHERE aid is not NULL
@@ -211,6 +220,9 @@ WITH aid_list AS (
         rank AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS session_clicks_rank,
+        NULL AS session_carts_rank,
+        NULL AS session_orders_rank
     FROM `kaggle-352109.otto.gru4rec_cv` -- FIXME
 --     FROM `kaggle-352109.otto.gru4rec`
     WHERE aid is not NULL
@@ -251,6 +263,9 @@ WITH aid_list AS (
         rank AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS session_clicks_rank,
+        NULL AS session_carts_rank,
+        NULL AS session_orders_rank
     FROM `kaggle-352109.otto.narm_cv` -- FIXME
 --     FROM `kaggle-352109.otto.gru4rec`
     WHERE aid is not NULL
@@ -291,9 +306,91 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         rank AS sasrec_candidate_num,
+        NULL AS session_clicks_rank,
+        NULL AS session_carts_rank,
+        NULL AS session_orders_rank
     FROM `kaggle-352109.otto.sasrec_cv` -- FIXME
 --     FROM `kaggle-352109.otto.sasrec`
     WHERE aid is not NULL
+), daily_ranking AS (
+  SELECT
+    dt,
+    aid,
+    clicks_rank,
+    carts_rank,
+    orders_rank
+  FROM (
+    SELECT
+      dt,
+      aid,
+      RANK() OVER (PARTITION BY dt ORDER BY clicks_cnt DESC) AS clicks_rank,
+      RANK() OVER (PARTITION BY dt ORDER BY carts_cnt DESC) AS carts_rank,
+      RANK() OVER (PARTITION BY dt ORDER BY orders_cnt DESC) AS orders_rank
+    FROM (
+      SELECT
+        dt,
+        aid,
+        SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS clicks_cnt,
+        SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS carts_cnt,
+        SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS orders_cnt
+      FROM (
+        SELECT
+          aid,
+          type,
+          CAST(FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(ts/1000 AS int))) as DATE) AS dt
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+      )
+      GROUP BY dt, aid
+    )
+  ) r
+  WHERE r.clicks_rank <= 10 or r.carts_rank <= 10 or r.orders_rank <= 10
+), session_ranking AS (
+    SELECT
+        session,
+        aid,
+        NULL AS session_aid_interaction_cnt,
+        NULL AS session_aid_last_type,
+        NULL AS avg_action_num_reverse_chrono,
+        NULL AS min_action_num_reverse_chrono,
+        NULL AS max_action_num_reverse_chrono,
+        NULL AS avg_sec_from_last_interaction,
+        NULL AS min_sec_from_last_interaction,
+        NULL AS max_sec_from_last_interaction,
+        NULL AS avg_sec_since_session_start,
+        NULL AS min_sec_since_session_start,
+        NULL AS max_sec_since_session_start,
+        NULL AS avg_sec_to_session_end,
+        NULL AS min_sec_to_session_end,
+        NULL AS max_sec_to_session_end,
+        NULL AS avg_log_recency_score,
+        NULL AS min_log_recency_score,
+        NULL AS max_log_recency_score,
+        NULL AS avg_type_weighted_log_recency_score,
+        NULL AS min_type_weighted_log_recency_score,
+        NULL AS max_type_weighted_log_recency_score,
+        NULL AS session_aid_clicks_cnt,
+        NULL AS session_aid_carts_cnt,
+        NULL AS session_aid_orders_cnt,
+        NULL AS session_aid_interaction_clicks_ratio,
+        NULL AS session_aid_interaction_carts_ratio,
+        NULL AS session_aid_interaction_orders_ratio,
+        NULL AS covisit_clicks_candidate_num,
+        NULL AS covisit_carts_candidate_num,
+        NULL AS covisit_orders_candidate_num,
+        NULL AS w2v_candidate_num,
+        NULL AS gru4rec_candidate_num,
+        NULL AS narm_candidate_num,
+        NULL AS sasrec_candidate_num,
+        r.clicks_rank AS session_clicks_rank,
+        r.carts_rank AS session_carts_rank,
+        r.orders_rank AS session_orders_rank
+    FROM (
+      SELECT
+        session,
+        MAX(CAST(FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(ts/1000 AS int))) as DATE)) AS dt
+      FROM `kaggle-352109.otto.otto-validation-test` t -- FIXME
+      GROUP BY session
+    ) t LEFT JOIN daily_ranking r ON r.dt = t.dt
 ), union_all AS (
     SELECT
         session,
@@ -331,6 +428,9 @@ WITH aid_list AS (
         MAX(gru4rec_candidate_num) AS gru4rec_candidate_num,
         MAX(narm_candidate_num) AS narm_candidate_num,
         MAX(sasrec_candidate_num) AS sasrec_candidate_num,
+        MAX(session_clicks_rank) AS session_clicks_rank,
+        MAX(session_carts_rank) AS session_carts_rank,
+        MAX(session_orders_rank) AS session_orders_rank
     FROM (
         SELECT * FROM aggregate_by_session_aid
         UNION ALL
@@ -343,6 +443,8 @@ WITH aid_list AS (
         SELECT * FROM narm
         UNION ALL
         SELECT * FROM sasrec
+        UNION ALL
+        SELECT * FROM session_ranking
     ) t
     GROUP BY session, aid
 ), session_stats1 AS (
@@ -585,6 +687,9 @@ SELECT
     sa.gru4rec_candidate_num,
     sa.narm_candidate_num,
     sa.sasrec_candidate_num,
+    sa.session_clicks_rank,
+    sa.session_carts_rank,
+    sa.session_orders_rank,
     COALESCE(ais.clicks_rank, 1000000) AS clicks_rank,
     COALESCE(ais.carts_rank, 1000000) AS carts_rank,
     COALESCE(ais.orders_rank, 1000000) AS orders_rank,
