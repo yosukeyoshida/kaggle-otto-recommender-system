@@ -21,10 +21,10 @@ from word2vec import calc_metrics, dump_pickle
 
 class CFG:
     wandb = True
-    use_saved_dataset = False
     model_name = "GRU4Rec"  # NARM
     MAX_ITEM = 20
     candidates_num = 30
+    use_test_only = False
 
 
 class ItemHistory(BaseModel):
@@ -73,44 +73,46 @@ def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
 
 def main(cv, output_dir, seed):
     if cv:
-        train_file_path = "./input/otto-validation/*_parquet/*"
+        if CFG.use_test_only:
+            train_file_path = "./input/otto-validation/test_parquet/*"
+        else:
+            train_file_path = "./input/otto-validation/*_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
     else:
-        train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+        if CFG.use_test_only:
+            train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+        else:
+            train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
-    if not CFG.use_saved_dataset:
-        _train = pl.read_parquet(train_file_path)
+
+    _train = pl.read_parquet(train_file_path)
+    if not CFG.use_test_only:
         sessions = _train["session"].unique()
         sample_sessions = sessions.sample(n=2000000, seed=seed)
         _train = _train.filter(pl.col("session").is_in(sample_sessions))
-        _train = _train.to_pandas()
-        _train["session"] = _train["session"].astype("int32")
-        _train["aid"] = _train["aid"].astype("int32")
-        _train["ts"] = (_train["ts"] / 1000).astype("int32")
-        train = pl.from_pandas(_train)
-        # _test = pl.read_parquet(test_file_path).to_pandas()
-        # _test["session"] = _test["session"].astype("int32")
-        # _test["aid"] = _test["aid"].astype("int32")
-        # _test["ts"] = (_test["ts"] / 1000).astype("int32")
-        # test = pl.from_pandas(_test)
-        # train = pl.concat([train, test])
-        print(f"train shape: {train.shape}")
-        train = train.sort(["session", "aid", "ts"])
-        train = train.with_columns((pl.col("ts") * 1e9).alias("ts"))
-        train = train.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
-        dataset_dir = os.path.join(output_dir, "recbox_data")
-        os.makedirs(dataset_dir, exist_ok=True)
-        train["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
-        del train, _train
-        gc.collect()
+    _train = _train.to_pandas()
+    _train["session"] = _train["session"].astype("int32")
+    _train["aid"] = _train["aid"].astype("int32")
+    _train["ts"] = (_train["ts"] / 1000).astype("int32")
+    train = pl.from_pandas(_train)
+
+    print(f"train shape: {train.shape}")
+    train = train.sort(["session", "aid", "ts"])
+    train = train.with_columns((pl.col("ts") * 1e9).alias("ts"))
+    train = train.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
+    dataset_dir = os.path.join(output_dir, "recbox_data")
+    os.makedirs(dataset_dir, exist_ok=True)
+    train["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
+    del train, _train
+    gc.collect()
 
     parameter_dict = {
         "data_path": output_dir,
         "USER_ID_FIELD": "session",
         "ITEM_ID_FIELD": "aid",
         "TIME_FIELD": "ts",
-        "user_inter_num_interval": "[5,inf)",
-        "item_inter_num_interval": "[5,inf)",
+        # "user_inter_num_interval": "[5,inf)",
+        # "item_inter_num_interval": "[5,inf)",
         "load_col": {"inter": ["session", "aid", "ts"]},
         "train_neg_sample_args": None,
         "epochs": 10,
@@ -125,17 +127,16 @@ def main(cv, output_dir, seed):
         "log_wandb": True,
         "wandb_project": "kaggle-otto",
     }
+    if CFG.use_test_only:
+        parameter_dict["user_inter_num_interval"] = "[5,inf)"
+        parameter_dict["item_inter_num_interval"] = "[5,inf)"
 
     config = Config(model=CFG.model_name, dataset="recbox_data", config_dict=parameter_dict)
     # print(config)
     init_seed(config["seed"], config["reproducibility"])
 
-    if CFG.use_saved_dataset:
-        print("load dataset")
-        dataset = pickle.load(open("output/gru4rec/sage-fog-266/cv/checkpoint/recbox_data-dataset.pth", "rb"))
-    else:
-        print("create_dataset start")
-        dataset = create_dataset(config)
+    print("create_dataset start")
+    dataset = create_dataset(config)
     print(dataset)
 
     print("data_preparation start")
@@ -152,10 +153,6 @@ def main(cv, output_dir, seed):
     labels = []
     dump_pickle(os.path.join(output_dir, "model.pkl"), model)
     dump_pickle(os.path.join(output_dir, "test_session_AIDs.pkl"), test_session_AIDs)
-    # output_dir2 = "output/gru4rec/crisp-glitter-347/cv/"
-    # model2 = pickle.load(open(os.path.join(output_dir2, "model.pkl"), "rb"))
-    # dataset2 = pickle.load(open(os.path.join(output_dir2, "checkpoint/recbox_data-dataset.pth"), "rb"))
-    # test_session_AIDs = pickle.load(open(os.path.join(output_dir, "test_session_AIDs.pkl"), "rb"))
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs))
         item = ItemHistory(sequence=AIDs, topk=CFG.candidates_num)
