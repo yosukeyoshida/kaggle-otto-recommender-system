@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221222_3/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221222_3/test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20221231_2/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221231_2/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -173,7 +173,9 @@ WITH aid_list AS (
         ROW_NUMBER() OVER (PARTITION BY session)  AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.gru4rec_aggs_cv`, UNNEST(labels.list) AS list
+    FROM `kaggle-352109.otto.gru4rec_aggs_cv`,   -- FIXME
+--     FROM `kaggle-352109.otto.gru4rec_aggs`,
+    UNNEST(labels.list) AS list
 ), narm AS (
     SELECT
         session,
@@ -203,7 +205,9 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         ROW_NUMBER() OVER (PARTITION BY session)  AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.narm_aggs_cv`, UNNEST(labels.list) AS list
+    FROM `kaggle-352109.otto.narm_aggs_cv`,  -- FIXME
+--     FROM `kaggle-352109.otto.narm_aggs`,
+    UNNEST(labels.list) AS list
 ), sasrec AS (
     SELECT
         session,

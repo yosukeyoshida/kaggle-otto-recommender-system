@@ -20,6 +20,9 @@ def main(cv, model_name, output_dir):
             preds.append(pickle.load(open("./output/gru4rec/eager-galaxy-445/cv/predictions.pkl", "rb")))
         else:
             preds.append(pickle.load(open("./output/gru4rec/rich-sun-348/predictions.pkl", "rb")))
+            preds.append(pickle.load(open("./output/gru4rec/pretty-wildflower-447/predictions.pkl", "rb")))
+            preds.append(pickle.load(open("./output/gru4rec/gentle-silence-458/predictions.pkl", "rb")))
+            preds.append(pickle.load(open("./output/gru4rec/proud-butterfly-465/predictions.pkl", "rb")))
     elif model_name == "narm":
         if cv:
             preds.append(pickle.load(open("./output/narm/jolly-planet-363/cv/predictions.pkl", "rb")))
@@ -28,6 +31,9 @@ def main(cv, model_name, output_dir):
             preds.append(pickle.load(open("./output/narm/charmed-hill-456/cv/predictions.pkl", "rb")))
         else:
             preds.append(pickle.load(open("./output/narm/giddy-voice-364/predictions.pkl", "rb")))
+            preds.append(pickle.load(open("./output/narm/worldly-rain-464/predictions.pkl", "rb")))
+            preds.append(pickle.load(open("./output/narm/comfy-durian-466/predictions.pkl", "rb")))
+            preds.append(pickle.load(open("./output/narm/eager-wave-472/predictions.pkl", "rb")))
     # # word2vec
     # if cv:
     #     preds.append(pickle.load(open("./output/word2vec/elated-silence-293/cv/predictions.pkl", "rb")))
@@ -52,10 +58,12 @@ def main(cv, model_name, output_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", type=str)
     args = parser.parse_args()
-    output_dir = f"output/aggregate/{args.model_name}"
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-    main(cv=True, model_name=args.model_name, output_dir=os.path.join(output_dir, "cv"))
-    # main(cv=False, output_dir=output_dir)
+
+    for model_name in ["gru4rec", "narm"]:
+        print(model_name)
+        output_dir = f"output/aggregate/{model_name}"
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
+        main(cv=True, model_name=model_name, output_dir=os.path.join(output_dir, "cv"))
+        main(cv=False, model_name=model_name, output_dir=output_dir)
