@@ -1,4 +1,5 @@
 import glob
+import argparse
 import os
 from collections import Counter
 
@@ -24,7 +25,7 @@ def read_files(path):
     return pd.concat(dfs).reset_index(drop=True)
 
 
-def main(cv, output_dir):
+def main(cv, output_dir, **kwargs):
     if cv:
         train_file_path = "./input/otto-validation/*_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
@@ -36,7 +37,9 @@ def main(cv, output_dir):
     test = read_files(test_file_path)
 
     # w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
-    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=100, sg=1)
+    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=kwargs["window"], sg=1)
+    if CFG.wandb:
+        wandb.log({"window": kwargs["window"]})
 
     aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
     index = AnnoyIndex(32, "angular")
@@ -74,6 +77,10 @@ def main(cv, output_dir):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--window", type=int, default=200)
+    args = parser.parse_args()
+
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="word2vec")
@@ -84,6 +91,9 @@ if __name__ == "__main__":
         output_dir = "output/word2vec"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-    main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+    params = {
+        "window": args.window
+    }
+    main(cv=True, output_dir=os.path.join(output_dir, "cv"), **params)
     if not CFG.cv_only:
         main(cv=False, output_dir=output_dir)
