@@ -35,7 +35,7 @@ def main(cv, output_dir):
     sentences = train.groupby("session")["aid"].apply(list).to_list()
     test = read_files(test_file_path)
 
-    w2vec = FastText(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
+    w2vec = FastText(sentences=sentences, vector_size=32, min_count=1, workers=4, window=20, sg=1)
 
     aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
     index = AnnoyIndex(32, "angular")
