@@ -1,2 +1,7 @@
-python src/recb.py --model_name GRU4Rec --type sub --seed 2
-python src/recb.py --model_name GRU4Rec --type sub --seed 3
+python src/fasttext.py --window 30
+python src/fasttext.py --window 40
+python src/fasttext.py --window 50
+python src/fasttext.py --window 60
+python src/fasttext.py --window 70
+python src/fasttext.py --window 80
+python src/fasttext.py --window 90
