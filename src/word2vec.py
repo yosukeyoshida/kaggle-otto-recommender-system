@@ -12,8 +12,8 @@ from util import calc_metrics, dump_pickle
 
 
 class CFG:
-    wandb = True
-    cv_only = True
+    wandb = False
+    cv_only = False
     candidates_num = 30
 
 
@@ -37,9 +37,7 @@ def main(cv, output_dir, **kwargs):
     test = read_files(test_file_path)
 
     # w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
-    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=kwargs["window"], sg=1)
-    if CFG.wandb:
-        wandb.log({"window": kwargs["window"]})
+    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=25, sg=1, negative=20)
 
     aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
     index = AnnoyIndex(32, "angular")
@@ -78,7 +76,7 @@ def main(cv, output_dir, **kwargs):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--window", type=int, default=200)
+    # parser.add_argument("--window", type=int, default=200)
     args = parser.parse_args()
 
     run_name = None
@@ -91,9 +89,8 @@ if __name__ == "__main__":
         output_dir = "output/word2vec"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-    params = {
-        "window": args.window
-    }
-    main(cv=True, output_dir=os.path.join(output_dir, "cv"), **params)
+    params = {}
+    # main(cv=True, output_dir=os.path.join(output_dir, "cv"), **params)
+    output_dir = "output/word2vec/vague-forest-493"
     if not CFG.cv_only:
         main(cv=False, output_dir=output_dir)
