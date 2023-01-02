@@ -77,6 +77,7 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS fasttext_candidate_num,
     FROM aid_list
     GROUP BY session, aid
 ), covisit AS (
@@ -108,6 +109,7 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS fasttext_candidate_num,
     FROM `kaggle-352109.otto.covisit_cv` -- FIXME
 --     FROM `kaggle-352109.otto.covisit`
     WHERE aid is not NULL
@@ -141,6 +143,7 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS fasttext_candidate_num,
     FROM `kaggle-352109.otto.w2v_sg_cv` -- FIXME
 --     FROM `kaggle-352109.otto.w2v_sg`
     WHERE aid is not NULL
@@ -173,6 +176,7 @@ WITH aid_list AS (
         ROW_NUMBER() OVER (PARTITION BY session)  AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS fasttext_candidate_num,
     FROM `kaggle-352109.otto.gru4rec_aggs_cv`,   -- FIXME
 --     FROM `kaggle-352109.otto.gru4rec_aggs`,
     UNNEST(labels.list) AS list
@@ -205,6 +209,7 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         ROW_NUMBER() OVER (PARTITION BY session)  AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
+        NULL AS fasttext_candidate_num,
     FROM `kaggle-352109.otto.narm_aggs_cv`,  -- FIXME
 --     FROM `kaggle-352109.otto.narm_aggs`,
     UNNEST(labels.list) AS list
@@ -237,8 +242,42 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         rank AS sasrec_candidate_num,
+        NULL AS fasttext_candidate_num,
     FROM `kaggle-352109.otto.sasrec_cv` -- FIXME
 --     FROM `kaggle-352109.otto.sasrec`
+    WHERE aid is not NULL
+), fasttext AS (
+    SELECT
+        session,
+        aid,
+        NULL AS avg_action_num_reverse_chrono,
+        NULL AS min_action_num_reverse_chrono,
+        NULL AS max_action_num_reverse_chrono,
+        NULL AS avg_sec_since_session_start,
+        NULL AS min_sec_since_session_start,
+        NULL AS max_sec_since_session_start,
+        NULL AS avg_sec_to_session_end,
+        NULL AS min_sec_to_session_end,
+        NULL AS max_sec_to_session_end,
+        NULL AS avg_log_recency_score,
+        NULL AS min_log_recency_score,
+        NULL AS max_log_recency_score,
+        NULL AS avg_type_weighted_log_recency_score,
+        NULL AS min_type_weighted_log_recency_score,
+        NULL AS max_type_weighted_log_recency_score,
+        NULL AS session_aid_clicks_cnt,
+        NULL AS session_aid_carts_cnt,
+        NULL AS session_aid_orders_cnt,
+        NULL AS covisit_clicks_candidate_num,
+        NULL AS covisit_carts_candidate_num,
+        NULL AS covisit_orders_candidate_num,
+        NULL AS w2v_candidate_num,
+        NULL AS gru4rec_candidate_num,
+        NULL AS narm_candidate_num,
+        NULL AS sasrec_candidate_num,
+        rank AS fasttext_candidate_num,
+    FROM `kaggle-352109.otto.fasttext_cv` -- FIXME
+--     FROM `kaggle-352109.otto.fasttext`
     WHERE aid is not NULL
 -- ), mf AS (
 --     SELECT
@@ -300,6 +339,7 @@ WITH aid_list AS (
         MAX(gru4rec_candidate_num) AS gru4rec_candidate_num,
         MAX(narm_candidate_num) AS narm_candidate_num,
         MAX(sasrec_candidate_num) AS sasrec_candidate_num,
+        MAX(fasttext_candidate_num) AS fasttext_candidate_num,
     FROM (
         SELECT * FROM aggregate_by_session_aid
         UNION ALL
@@ -314,6 +354,8 @@ WITH aid_list AS (
 --         WHERE narm_candidate_num <= 30
         UNION ALL
         SELECT * FROM sasrec
+        UNION ALL
+        SELECT * FROM fasttext
     ) t
     GROUP BY session, aid
 ), session_stats1 AS (
@@ -513,6 +555,7 @@ SELECT
     sa.gru4rec_candidate_num,
     sa.narm_candidate_num,
     sa.sasrec_candidate_num,
+    sa.fasttext_candidate_num,
     COALESCE(ais.clicks_rank, 1000000) AS clicks_rank,
     COALESCE(ais.carts_rank, 1000000) AS carts_rank,
     COALESCE(ais.orders_rank, 1000000) AS orders_rank,
