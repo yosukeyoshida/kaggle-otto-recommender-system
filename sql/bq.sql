@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20221231_2/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20221231_2/test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20230103/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20230103/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -141,8 +141,8 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.w2v_cv` -- FIXME
---     FROM `kaggle-352109.otto.w2v`
+    FROM `kaggle-352109.otto.w2v_sg_cv` -- FIXME
+--     FROM `kaggle-352109.otto.w2v_sg`
     WHERE aid is not NULL
 ), gru4rec AS (
     SELECT
