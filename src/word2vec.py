@@ -7,6 +7,7 @@ import pandas as pd
 import wandb
 from annoy import AnnoyIndex
 from gensim.models import Word2Vec
+from gensim.models.callbacks import CallbackAny2Vec
 
 from util import calc_metrics, dump_pickle
 
@@ -16,6 +17,16 @@ class CFG:
     cv_only = False
     candidates_num = 30
 
+class callback(CallbackAny2Vec):
+    '''Callback to print loss after each epoch.'''
+
+    def __init__(self):
+        self.epoch = 0
+
+    def on_epoch_end(self, model):
+        loss = model.get_latest_training_loss()
+        print('Loss after epoch {}: {}'.format(self.epoch, loss))
+        self.epoch += 1
 
 def read_files(path):
     dfs = []
@@ -36,7 +47,7 @@ def main(cv, output_dir, **kwargs):
     sentences = train.groupby("session")["aid"].apply(list).to_list()
     test = read_files(test_file_path)
 
-    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=25, sg=1, negative=20)
+    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=25, sg=1, negative=20, epochs=20, compute_loss=True, callbacks=[callback()])
 
     aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
     index = AnnoyIndex(32, "angular")
