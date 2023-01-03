@@ -127,9 +127,8 @@ def run_train(type, output_dir, single_fold):
     train["gt"] = train["gt"].astype("int8")
     train = train.reset_index(drop=True)
     print(train.dtypes)
-    # print(train.dtypes)^M
     positives = train.loc[train["gt"] == 1]
-    negatives = train.loc[train["gt"] == 0].sample(n=len(positives) * 80, random_state=42)
+    negatives = train.loc[train["gt"] == 0].sample(n=len(positives) * 20, random_state=42)
     train = pd.concat([positives, negatives], axis=0, ignore_index=True)
     if CFG.wandb:
         wandb.log(
@@ -198,8 +197,8 @@ def run_train(type, output_dir, single_fold):
         ranker = CatBoostRanker(**params)
         ranker.fit(_train, eval_set=_valid, use_best_model=True)
         print("train end")
-        # if CFG.wandb:
-        #     wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
+        if CFG.wandb:
+            wandb.log({f"[{type}] best_iteration": ranker.get_best_iteration()})
         dump_pickle(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), ranker)
         X_valid = X_valid.sort_values(["session", "aid"])
         scores = ranker.predict(X_valid[feature_cols])
@@ -301,7 +300,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="catboost_ranker")
+        wandb.init(project="kaggle-otto", job_type="catboost")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/catboost", run_name)
