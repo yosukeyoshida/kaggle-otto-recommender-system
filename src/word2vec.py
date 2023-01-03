@@ -12,7 +12,7 @@ from util import calc_metrics, dump_pickle
 
 
 class CFG:
-    wandb = False
+    wandb = True
     cv_only = False
     candidates_num = 30
 
@@ -36,7 +36,6 @@ def main(cv, output_dir, **kwargs):
     sentences = train.groupby("session")["aid"].apply(list).to_list()
     test = read_files(test_file_path)
 
-    # w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=3)
     w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=25, sg=1, negative=20)
 
     aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
@@ -90,7 +89,6 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
     params = {}
-    # main(cv=True, output_dir=os.path.join(output_dir, "cv"), **params)
-    output_dir = "output/word2vec/vague-forest-493"
+    main(cv=True, output_dir=os.path.join(output_dir, "cv"), **params)
     if not CFG.cv_only:
         main(cv=False, output_dir=output_dir)
