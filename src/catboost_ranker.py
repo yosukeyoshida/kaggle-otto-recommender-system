@@ -181,6 +181,7 @@ def run_train(type, output_dir, single_fold):
             'random_seed': 42,
             "has_time": True,
             'early_stopping_rounds': 50,
+            "use_best_model": True,
         }
         _train = Pool(
             data=X_train,
