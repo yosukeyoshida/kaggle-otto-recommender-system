@@ -14,7 +14,7 @@ import wandb
 
 class CFG:
     wandb = True
-    use_saved_negative_sampling = True
+    use_saved_negative_sampling = False
     n_folds = 5
     dtypes = {
         "session": "int32",
@@ -118,7 +118,8 @@ def dump_pickle(path, o):
 
 def run_train(type, output_dir, single_fold):
     if CFG.use_saved_negative_sampling:
-        train = pickle.load(open("./input/train.pkl", "rb"))
+        train = pickle.load(open("./input/train_ns.pkl", "rb"))
+        train_labels = pickle.load(open("./input/train_labels_ns.pkl", "rb"))
     else:
         train = read_files("./input/lgbm_dataset/*")
         train_labels_all = read_train_labels()
@@ -143,7 +144,8 @@ def run_train(type, output_dir, single_fold):
             )
         del positives, negatives
         gc.collect()
-        dump_pickle(os.path.join(output_dir, "train.pkl"), train)
+        dump_pickle(os.path.join(output_dir, "train_ns.pkl"), train)
+        dump_pickle(os.path.join(output_dir, "train_labels_ns.pkl"), train)
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
