@@ -14,7 +14,7 @@ import wandb
 
 class CFG:
     wandb = True
-    use_saved_negative_sampling = False
+    use_saved_negative_sampling = True
     n_folds = 5
     dtypes = {
         "session": "int32",
