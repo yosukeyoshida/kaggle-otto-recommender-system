@@ -182,6 +182,8 @@ def run_train(type, output_dir, single_fold):
             "has_time": True,
             'early_stopping_rounds': 50,
             "use_best_model": True,
+            "task_type": "GPU",
+            "plot": True,
         }
         _train = Pool(
             data=X_train,
