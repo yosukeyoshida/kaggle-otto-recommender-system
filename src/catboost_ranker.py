@@ -118,7 +118,7 @@ def dump_pickle(path, o):
 
 def run_train(type, output_dir, single_fold):
     if CFG.use_saved_negative_sampling:
-        train = pickle.load(open(os.path.join(output_dir, "train.pkl"), "rb"))
+        train = pickle.load(open("./input/train.pkl", "rb"))
     else:
         train = read_files("./input/lgbm_dataset/*")
         train_labels_all = read_train_labels()
