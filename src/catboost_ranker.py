@@ -118,8 +118,8 @@ def dump_pickle(path, o):
 
 def run_train(type, output_dir, single_fold):
     if CFG.use_saved_negative_sampling:
-        train = pickle.load(open("./input/train_ns.pkl", "rb"))
-        train_labels = pickle.load(open("./input/train_labels_ns.pkl", "rb"))
+        train = pickle.load(open(f"./input/train_ns_{type}.pkl", "rb"))
+        train_labels = pickle.load(open(f"./input/train_labels_ns_{type}.pkl", "rb"))
     else:
         train = read_files("./input/lgbm_dataset/*")
         train_labels_all = read_train_labels()
@@ -144,8 +144,8 @@ def run_train(type, output_dir, single_fold):
             )
         del positives, negatives
         gc.collect()
-        dump_pickle(os.path.join(output_dir, "train_ns.pkl"), train)
-        dump_pickle(os.path.join(output_dir, "train_labels_ns.pkl"), train)
+        dump_pickle(os.path.join(output_dir, f"train_ns_{type}.pkl"), train)
+        dump_pickle(os.path.join(output_dir, f"train_labels_ns_{type}.pkl"), train)
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
