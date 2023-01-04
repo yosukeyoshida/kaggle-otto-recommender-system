@@ -10,6 +10,7 @@ from wandb.lightgbm import wandb_callback
 from catboost import CatBoostRanker, Pool, MetricVisualizer
 
 import wandb
+import random
 
 
 class CFG:
@@ -144,8 +145,9 @@ def run_train(type, output_dir, single_fold):
         #     )
         # del positives, negatives
         # gc.collect()
-        sessions = train["session"].unique()
-        sample_sessions = sessions.sample(n=2000000, seed=42)
+        sessions = train["session"].unique().tolist()
+        random.seed(42)
+        sample_sessions = random.sample(sessions, 200000)
         train = train[train["session"].isin(sample_sessions)]
         del sessions, sample_sessions
         gc.collect()
