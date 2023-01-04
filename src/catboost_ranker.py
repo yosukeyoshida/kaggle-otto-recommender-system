@@ -139,6 +139,7 @@ def run_train(type, output_dir, single_fold):
         )
     del positives, negatives
     gc.collect()
+    dump_pickle(os.path.join(output_dir, "train.pkl"), train)
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
@@ -312,14 +313,14 @@ def main(single_fold):
         output_dir = "output/catboost"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir, single_fold)
-    carts_recall = run_train("carts", output_dir, single_fold)
+    # clicks_recall = run_train("clicks", output_dir, single_fold)
+    # carts_recall = run_train("carts", output_dir, single_fold)
     orders_recall = run_train("orders", output_dir, single_fold)
-    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    if CFG.wandb:
-        wandb.log({"total recall": total_recall})
-    run_inference(output_dir, single_fold)
+    # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+    # if CFG.wandb:
+    #     wandb.log({"total recall": total_recall})
+    # run_inference(output_dir, single_fold)
 
 
 if __name__ == "__main__":
