@@ -205,7 +205,7 @@ def run_train(type, output_dir, single_fold):
         gc.collect()
         print("train start")
         ranker = CatBoostRanker(**params)
-        ranker.fit(_train, eval_set=_valid, use_best_model=True, plot=True)
+        ranker.fit(_train, eval_set=_valid, use_best_model=True)
         print("train end")
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.get_best_iteration()})
