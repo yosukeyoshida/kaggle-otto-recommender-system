@@ -6,8 +6,7 @@ import pickle
 
 import pandas as pd
 from sklearn.model_selection import GroupKFold
-from wandb.lightgbm import wandb_callback
-from catboost import CatBoostRanker, Pool, MetricVisualizer
+from catboost import CatBoostRanker, Pool
 
 import wandb
 import random
@@ -15,7 +14,7 @@ import random
 
 class CFG:
     wandb = True
-    use_saved_negative_sampling = True
+    use_saved_negative_sampling = False
     n_folds = 5
     dtypes = {
         "session": "int32",
@@ -149,6 +148,7 @@ def run_train(type, output_dir, single_fold):
         random.seed(42)
         sample_sessions = random.sample(sessions, 200000)
         train = train[train["session"].isin(sample_sessions)]
+        train = train.reset_index(drop=True)
         del sessions, sample_sessions
         gc.collect()
         dump_pickle(os.path.join(output_dir, f"train_ns_{type}.pkl"), train)
@@ -325,14 +325,14 @@ def main(single_fold):
         output_dir = "output/catboost"
     os.makedirs(output_dir, exist_ok=True)
 
-    # clicks_recall = run_train("clicks", output_dir, single_fold)
-    # carts_recall = run_train("carts", output_dir, single_fold)
+    clicks_recall = run_train("clicks", output_dir, single_fold)
+    carts_recall = run_train("carts", output_dir, single_fold)
     orders_recall = run_train("orders", output_dir, single_fold)
-    # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    # if CFG.wandb:
-    #     wandb.log({"total recall": total_recall})
-    # run_inference(output_dir, single_fold)
+    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+    if CFG.wandb:
+        wandb.log({"total recall": total_recall})
+    run_inference(output_dir, single_fold)
 
 
 if __name__ == "__main__":
