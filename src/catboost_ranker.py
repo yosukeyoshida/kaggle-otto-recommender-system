@@ -145,7 +145,7 @@ def run_train(type, output_dir, single_fold):
         del positives, negatives
         gc.collect()
         dump_pickle(os.path.join(output_dir, f"train_ns_{type}.pkl"), train)
-        dump_pickle(os.path.join(output_dir, f"train_labels_ns_{type}.pkl"), train)
+        dump_pickle(os.path.join(output_dir, f"train_labels_ns_{type}.pkl"), train_labels)
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
@@ -187,7 +187,7 @@ def run_train(type, output_dir, single_fold):
             'custom_metric': ['NDCG', "AUC:type=Ranking"],
             'random_seed': 42,
             "has_time": True,
-            'early_stopping_rounds': 50,
+            'early_stopping_rounds': 100,
             "use_best_model": True,
             "task_type": "GPU",
         }
