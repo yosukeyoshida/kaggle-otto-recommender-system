@@ -130,7 +130,7 @@ def run_train(type, output_dir, single_fold):
         gc.collect()
         train["gt"].fillna(0, inplace=True)
         train["gt"] = train["gt"].astype("int8")
-        train = train.reset_index(drop=True)
+        # train = train.reset_index(drop=True)
         print(train.dtypes)
         # positives = train.loc[train["gt"] == 1]
         # negatives = train.loc[train["gt"] == 0].sample(n=len(positives) * 20, random_state=42)
