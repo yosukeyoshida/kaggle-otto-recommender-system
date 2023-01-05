@@ -98,7 +98,13 @@ def read_files(path):
         for col in CFG.float_cols:
             df[col] = df[col].astype("float16")
         dfs.append(df)
-    return pd.concat(dfs).reset_index(drop=True)
+        del df
+        gc.collect()
+    df = pd.concat(dfs)
+    del dfs
+    gc.collect()
+    df.reset_index(drop=True, inplace=True)
+    return df
 
 
 def read_train_labels():
@@ -148,7 +154,7 @@ def run_train(type, output_dir, single_fold):
         random.seed(42)
         sample_sessions = random.sample(sessions, 200000)
         train = train[train["session"].isin(sample_sessions)]
-        train = train.reset_index(drop=True)
+        train.reset_index(drop=True, inplace=True)
         del sessions, sample_sessions
         gc.collect()
         dump_pickle(os.path.join(output_dir, f"train_ns_{type}.pkl"), train)
