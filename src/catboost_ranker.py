@@ -240,6 +240,8 @@ def run_train(type, output_dir, single_fold):
             break
     joined = pd.concat(dfs)
     recall = joined["hits"].sum() / joined["gt_count"].sum()
+    del dfs, joined
+    gc.collect()
     return recall
 
 
