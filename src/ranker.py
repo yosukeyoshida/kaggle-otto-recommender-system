@@ -1,4 +1,5 @@
 import argparse
+import random
 import gc
 import glob
 import os
@@ -127,18 +128,12 @@ def run_train(type, output_dir, single_fold):
     train["gt"] = train["gt"].astype("int8")
     train = train.reset_index(drop=True)
     print(train.dtypes)
-    # print(train.dtypes)^M
-    positives = train.loc[train["gt"] == 1]
-    negatives = train.loc[train["gt"] == 0].sample(n=len(positives) * 20, random_state=42)
-    train = pd.concat([positives, negatives], axis=0, ignore_index=True)
-    if CFG.wandb:
-        wandb.log(
-            {
-                f"[{type}] train positive size": len(positives),
-                f"[{type}] train negative size": len(negatives),
-            }
-        )
-    del positives, negatives
+    sessions = train["session"].unique().tolist()
+    random.seed(42)
+    sample_sessions = random.sample(sessions, 500000)
+    train = train[train["session"].isin(sample_sessions)]
+    train.reset_index(drop=True, inplace=True)
+    del sessions, sample_sessions
     gc.collect()
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
