@@ -171,13 +171,13 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.w2v_cv` -- FIXME
---     FROM `kaggle-352109.otto.w2v`
+    FROM `kaggle-352109.otto.w2v_sg_cv` -- FIXME
+--     FROM `kaggle-352109.otto.w2v_sg`
     WHERE aid is not NULL
 ), gru4rec AS (
     SELECT
         session,
-        aid,
+        list.item AS aid,
         NULL AS session_aid_interaction_cnt,
         NULL AS session_aid_last_type,
         NULL AS avg_action_num_reverse_chrono,
@@ -208,16 +208,16 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
-        rank AS gru4rec_candidate_num,
+        ROW_NUMBER() OVER (PARTITION BY session)  AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.gru4rec_cv` -- FIXME
---     FROM `kaggle-352109.otto.gru4rec`
-    WHERE aid is not NULL
+    FROM `kaggle-352109.otto.gru4rec_aggs_cv`,   -- FIXME
+--     FROM `kaggle-352109.otto.gru4rec_aggs`,
+    UNNEST(labels.list) AS list
 ), narm AS (
     SELECT
         session,
-        aid,
+        list.item AS aid,
         NULL AS session_aid_interaction_cnt,
         NULL AS session_aid_last_type,
         NULL AS avg_action_num_reverse_chrono,
@@ -248,12 +248,12 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
-        rank AS gru4rec_candidate_num,
-        NULL AS narm_candidate_num,
+        NULL AS gru4rec_candidate_num,
+        ROW_NUMBER() OVER (PARTITION BY session)  AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.narm_cv` -- FIXME
---     FROM `kaggle-352109.otto.gru4rec`
-    WHERE aid is not NULL
+    FROM `kaggle-352109.otto.narm_aggs_cv`,  -- FIXME
+--     FROM `kaggle-352109.otto.narm_aggs`,
+    UNNEST(labels.list) AS list
 ), sasrec AS (
     SELECT
         session,
@@ -339,8 +339,10 @@ WITH aid_list AS (
         SELECT * FROM w2v
         UNION ALL
         SELECT * FROM gru4rec
+--         WHERE gru4rec_candidate_num <= 30
         UNION ALL
         SELECT * FROM narm
+--         WHERE narm_candidate_num <= 30
         UNION ALL
         SELECT * FROM sasrec
     ) t

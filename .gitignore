@@ -8,3 +8,5 @@ log
 log_tensorboard
 input
 output
+catboost_info
+wandb

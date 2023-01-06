@@ -1,4 +1,5 @@
 import argparse
+import math
 import gc
 import os
 import pickle
@@ -20,10 +21,10 @@ from word2vec import calc_metrics, dump_pickle
 
 class CFG:
     wandb = True
-    use_saved_dataset = False
     model_name = "GRU4Rec"  # NARM
     MAX_ITEM = 20
     candidates_num = 30
+    use_test_only = False
 
 
 class ItemHistory(BaseModel):
@@ -70,39 +71,40 @@ def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
     return recommended_items
 
 
-def main(cv, output_dir):
+def main(cv, output_dir, seed):
     if cv:
-        train_file_path = "./input/otto-validation/test_parquet/*"
+        if CFG.use_test_only:
+            train_file_path = "./input/otto-validation/test_parquet/*"
+        else:
+            train_file_path = "./input/otto-validation/*_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
     else:
-        train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+        if CFG.use_test_only:
+            train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+        else:
+            train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
-    if not CFG.use_saved_dataset:
-        _train = pl.read_parquet(train_file_path).to_pandas()
-        _train["session"] = _train["session"].astype("int32")
-        _train["aid"] = _train["aid"].astype("int32")
-        _train["ts"] = (_train["ts"] / 1000).astype("int32")
-        train = pl.from_pandas(_train)
-        # _test = pl.read_parquet(test_file_path).to_pandas()
-        # _test["session"] = _test["session"].astype("int32")
-        # _test["aid"] = _test["aid"].astype("int32")
-        # _test["ts"] = (_test["ts"] / 1000).astype("int32")
-        # test = pl.from_pandas(_test)
-        # train = pl.concat([train, test])
-        print(f"train shape: {train.shape}")
-        # sessions = train["session"].unique()
-        # sample_size = math.floor(len(sessions) * 0.2)
-        # sample_sessions = sessions.sample(sample_size)
-        # train = train.filter(pl.col("session").is_in(sample_sessions))
-        # print(f"sample train shape: {train.shape}")
-        train = train.sort(["session", "aid", "ts"])
-        train = train.with_columns((pl.col("ts") * 1e9).alias("ts"))
-        train = train.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
-        dataset_dir = os.path.join(output_dir, "recbox_data")
-        os.makedirs(dataset_dir, exist_ok=True)
-        train["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
-        del train, _train
-        gc.collect()
+
+    _train = pl.read_parquet(train_file_path)
+    if not CFG.use_test_only:
+        sessions = _train["session"].unique()
+        sample_sessions = sessions.sample(n=2000000, seed=seed)
+        _train = _train.filter(pl.col("session").is_in(sample_sessions))
+    _train = _train.to_pandas()
+    _train["session"] = _train["session"].astype("int32")
+    _train["aid"] = _train["aid"].astype("int32")
+    _train["ts"] = (_train["ts"] / 1000).astype("int32")
+    train = pl.from_pandas(_train)
+
+    print(f"train shape: {train.shape}")
+    train = train.sort(["session", "aid", "ts"])
+    train = train.with_columns((pl.col("ts") * 1e9).alias("ts"))
+    train = train.rename({"session": "session:token", "aid": "aid:token", "ts": "ts:float"})
+    dataset_dir = os.path.join(output_dir, "recbox_data")
+    os.makedirs(dataset_dir, exist_ok=True)
+    train["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
+    del train, _train
+    gc.collect()
 
     parameter_dict = {
         "data_path": output_dir,
@@ -115,6 +117,7 @@ def main(cv, output_dir):
         "train_neg_sample_args": None,
         "epochs": 10,
         "stopping_step": 3,
+        "train_batch_size": 2048,
         "eval_batch_size": 1024,
         "MAX_ITEM_LIST_LENGTH": CFG.MAX_ITEM,
         "eval_args": {"split": {"RS": [9, 1, 0]}, "group_by": "user", "order": "TO", "mode": "full"},
@@ -124,17 +127,16 @@ def main(cv, output_dir):
         "log_wandb": True,
         "wandb_project": "kaggle-otto",
     }
+    if CFG.use_test_only:
+        parameter_dict["user_inter_num_interval"] = "[5,inf)"
+        parameter_dict["item_inter_num_interval"] = "[5,inf)"
 
     config = Config(model=CFG.model_name, dataset="recbox_data", config_dict=parameter_dict)
     # print(config)
     init_seed(config["seed"], config["reproducibility"])
 
-    if CFG.use_saved_dataset:
-        print("load dataset")
-        dataset = pickle.load(open("output/gru4rec/sage-fog-266/cv/checkpoint/recbox_data-dataset.pth", "rb"))
-    else:
-        print("create_dataset start")
-        dataset = create_dataset(config)
+    print("create_dataset start")
+    dataset = create_dataset(config)
     print(dataset)
 
     print("data_preparation start")
@@ -151,13 +153,13 @@ def main(cv, output_dir):
     labels = []
     dump_pickle(os.path.join(output_dir, "model.pkl"), model)
     dump_pickle(os.path.join(output_dir, "test_session_AIDs.pkl"), test_session_AIDs)
-    # model = pickle.load(open(os.path.join(output_dir, "model.pkl"), "rb"))
-    # dataset = pickle.load(open(os.path.join(output_dir, "checkpoint/recbox_data-dataset.pth"), "rb"))
-    # test_session_AIDs = pickle.load(open(os.path.join(output_dir, "test_session_AIDs.pkl"), "rb"))
     for AIDs in test_session_AIDs:
         AIDs = list(dict.fromkeys(AIDs))
         item = ItemHistory(sequence=AIDs, topk=CFG.candidates_num)
-        nns = pred_user_to_item(item, dataset, model)["item_list"]
+        try:
+            nns = pred_user_to_item(item, dataset, model)["item_list"]
+        except:
+            nns = []
         labels.append(nns)
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
@@ -183,6 +185,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--type", type=str)
     parser.add_argument("--model_name", type=str)
+    parser.add_argument("--seed", type=int)
     args = parser.parse_args()
 
     CFG.model_name = args.model_name
@@ -191,7 +194,7 @@ if __name__ == "__main__":
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type=CFG.model_name.lower())
         run_name = wandb.run.name
-        wandb.log({"type": args.type})
+        wandb.log({"type": args.type, "seed": args.seed})
     if run_name is not None:
         output_dir = os.path.join(f"output/{CFG.model_name.lower()}", run_name)
     else:
@@ -200,6 +203,6 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
 
     if args.type == "cv":
-        main(cv=True, output_dir=os.path.join(output_dir, "cv"))
+        main(cv=True, output_dir=os.path.join(output_dir, "cv"), seed=args.seed)
     elif args.type == "sub":
-        main(cv=False, output_dir=output_dir)
+        main(cv=False, output_dir=output_dir, seed=args.seed)
