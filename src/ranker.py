@@ -150,6 +150,8 @@ def run_train(type, output_dir, single_fold, seed):
     print(train.dtypes)
     sessions = train["session"].unique().tolist()
     random.seed(seed)
+    if CFG.wandb:
+        wandb.log({f"seed": seed})
     sample_sessions = random.sample(sessions, 500000)
     train = train[train["session"].isin(sample_sessions)]
     train.reset_index(drop=True, inplace=True)
