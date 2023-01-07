@@ -23,7 +23,7 @@ class CFG:
     wandb = True
     model_name = "GRU4Rec"  # NARM
     MAX_ITEM = 20
-    candidates_num = 30
+    candidates_num = 100
     use_test_only = False
 
 
