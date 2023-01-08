@@ -314,7 +314,7 @@ def run_inference(output_dir, single_fold):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main(single_fold):
+def main(single_fold, seed):
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="ranker")
@@ -325,9 +325,12 @@ def main(single_fold):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir, single_fold)
-    carts_recall = run_train("carts", output_dir, single_fold)
-    orders_recall = run_train("orders", output_dir, single_fold)
+    if CFG.wandb:
+        wandb.log({"seed": seed})
+
+    clicks_recall = run_train("clicks", output_dir, single_fold, seed)
+    carts_recall = run_train("carts", output_dir, single_fold, seed)
+    orders_recall = run_train("orders", output_dir, single_fold, seed)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
@@ -342,4 +345,4 @@ if __name__ == "__main__":
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
-    main(args.single_fold)
+    main(args.single_fold, args.seed)
