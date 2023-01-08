@@ -1,4 +1,5 @@
 import argparse
+import math
 import gc
 import glob
 import os
@@ -116,30 +117,45 @@ def dump_pickle(path, o):
 
 
 def run_train(type, output_dir, single_fold):
-    train = read_files("./input/lgbm_dataset/*")
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
-    train = train.merge(train_labels, how="left", on=["session", "aid"])
+
+    path = "./input/lgbm_dataset/*"
+    files = glob.glob(path)
+    chunk_size = math.ceil(len(files) / 5)
+    files_list = split_list(files, chunk_size)
+    train_list = []
+    for i, files in enumerate(files_list):
+        print(f"chunk{i}")
+        dfs = []
+        for file in files:
+            df = pd.read_parquet(file)
+            df = cast_cols(df)
+            dfs.append(df)
+        _train = pd.concat(dfs).reset_index(drop=True)
+        del dfs
+        gc.collect()
+
+        _train = _train.merge(train_labels, how="left", on=["session", "aid"])
+        _train["gt"].fillna(0, inplace=True)
+        _train["gt"] = _train["gt"].astype("int8")
+        positives = _train.loc[_train["gt"] == 1]
+        negatives = _train.loc[_train["gt"] == 0].sample(n=len(positives) * 20, random_state=42)
+        _train = pd.concat([positives, negatives], axis=0, ignore_index=True)
+        train_list.append(_train)
+        del positives, negatives
+        gc.collect()
+    train = pd.concat(train_list).reset_index(drop=True)
     del train_labels_all
     gc.collect()
-    train["gt"].fillna(0, inplace=True)
-    train["gt"] = train["gt"].astype("int8")
-    train = train.reset_index(drop=True)
-    print(train.dtypes)
-    # print(train.dtypes)^M
-    positives = train.loc[train["gt"] == 1]
-    negatives = train.loc[train["gt"] == 0].sample(n=len(positives) * 20, random_state=42)
-    train = pd.concat([positives, negatives], axis=0, ignore_index=True)
-    if CFG.wandb:
-        wandb.log(
-            {
-                f"[{type}] train positive size": len(positives),
-                f"[{type}] train negative size": len(negatives),
-            }
-        )
-    del positives, negatives
-    gc.collect()
+    # if CFG.wandb:
+    #     wandb.log(
+    #         {
+    #             f"[{type}] train positive size": len(positives),
+    #             f"[{type}] train negative size": len(negatives),
+    #         }
+    #     )
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
