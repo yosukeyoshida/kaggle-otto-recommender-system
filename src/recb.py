@@ -177,6 +177,10 @@ def main(cv, output_dir, seed):
             modified_predictions = pred_df.copy()
             modified_predictions["type"] = st
             prediction_dfs.append(modified_predictions)
+            del modified_predictions
+            gc.collect()
+        del pred_df
+        gc.collect()
         prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
         calc_metrics(prediction_dfs, output_dir, CFG.candidates_num, CFG.wandb)
 
