@@ -133,7 +133,7 @@ def run_train(type, output_dir, single_fold, seed):
             df = pd.read_parquet(file)
             df = cast_cols(df)
             dfs.append(df)
-        _train = pd.concat(dfs).reset_index(drop=True)
+        _train = pd.concat(dfs, axis=0, ignore_index=True)
         del dfs
         gc.collect()
 
@@ -147,7 +147,7 @@ def run_train(type, output_dir, single_fold, seed):
         train_list.append(_train)
         del positives, negatives
         gc.collect()
-    train = pd.concat(train_list).reset_index(drop=True)
+    train = pd.concat(train_list, axis=0, ignore_index=True)
     del train_labels_all
     gc.collect()
     # if CFG.wandb:
@@ -325,6 +325,7 @@ def main(single_fold, seed):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
+    print(f"seed={seed}")
     if CFG.wandb:
         wandb.log({"seed": seed})
 
