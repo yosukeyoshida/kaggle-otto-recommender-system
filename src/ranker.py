@@ -116,14 +116,14 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, output_dir, single_fold):
+def run_train(type, output_dir, single_fold, seed):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
     path = "./input/lgbm_dataset/*"
     files = glob.glob(path)
-    chunk_size = math.ceil(len(files) / 5)
+    chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
     train_list = []
     for i, files in enumerate(files_list):
@@ -141,7 +141,8 @@ def run_train(type, output_dir, single_fold):
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
         positives = _train.loc[_train["gt"] == 1]
-        negatives = _train.loc[_train["gt"] == 0].sample(n=len(positives) * 20, random_state=42)
+        negatives = _train.loc[_train["gt"] == 0].sample(n=len(positives) * 20, random_state=seed)
+        print(f"positives: {len(positives)} negatives: {len(negatives)}")
         _train = pd.concat([positives, negatives], axis=0, ignore_index=True)
         train_list.append(_train)
         del positives, negatives
@@ -337,6 +338,7 @@ def main(single_fold):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_iterations", type=int, default=200)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
