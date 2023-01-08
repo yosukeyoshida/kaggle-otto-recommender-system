@@ -258,7 +258,8 @@ def run_inference(output_dir, single_fold):
     path = "./input/lgbm_dataset_test/*"
     files = glob.glob(path)
     preds = []
-    files_list = split_list(files, 50)
+    chunk_size = math.ceil(len(files) / 5)
+    files_list = split_list(files, chunk_size)
     for files in files_list:
         dfs = []
         for file in files:
