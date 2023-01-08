@@ -188,6 +188,7 @@ def run_train(type, output_dir, single_fold):
             'bagging_fraction': 0.8,  # default = 1.0
             'random_state': 0,  # default = None
             "objective": "binary",
+            "num_iterations": 2000,
         }
         _train = lgb.Dataset(X_train, y_train)
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train)
@@ -195,7 +196,7 @@ def run_train(type, output_dir, single_fold):
         gc.collect()
         # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=100, verbose=True)])
         print("train end")
         # log_summary(ranker, save_model_checkpoint=True)
         if CFG.wandb:
