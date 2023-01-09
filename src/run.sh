@@ -1,6 +1,3 @@
-python src/recb.py --model_name GRU4Rec --type cv
-python src/recb.py --model_name GRU4Rec --type sub
-python src/recb.py --model_name NARM --type cv
-python src/recb.py --model_name NARM --type sub
-python src/recb.py --model_name SASRec --type cv
-python src/recb.py --model_name SASRec --type sub
+python src/ranker.py --seed 0
+python src/ranker.py --seed 1
+python src/ranker.py --seed 2
