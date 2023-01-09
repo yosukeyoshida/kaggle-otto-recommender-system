@@ -14,7 +14,7 @@ from util import calc_metrics, dump_pickle
 class CFG:
     wandb = True
     cv_only = False
-    candidates_num = 30
+    candidates_num = 100
 
 
 def read_files(path):
