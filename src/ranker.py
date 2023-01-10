@@ -14,7 +14,8 @@ from wandb.lightgbm import log_summary, wandb_callback
 
 class CFG:
     wandb = True
-    num_iterations = 200
+    num_iterations = 2000
+    cv_only = True
     n_folds = 5
     dtypes = {
         "session": "int32",
@@ -86,6 +87,27 @@ class CFG:
         "min_sec_session_carts_orders",
         "max_sec_session_carts_orders",
     ]
+
+global max_score
+global best_iteration
+max_score = 0
+best_iteration = 0
+
+def save_model(i, type, save_model_dir):
+    def callback(env):
+        global max_score
+        global best_iteration
+        iteration = env.iteration
+        score = env.evaluation_result_list[0][2]
+        if iteration % 100 == 0:
+            print("iteration {}, score= {:.05f}".format(iteration, score))
+        if score > max_score:
+            max_score = score
+            # print('High Score: iteration {}, score={:.05f}'.format(iteration, score))
+            best_iteration = iteration
+            env.model.save_model(f"{save_model_dir}/lgb_fold{i}")
+    callback.order = 0
+    return callback
 
 
 def read_files(path):
@@ -194,9 +216,9 @@ def run_train(type, output_dir, single_fold, seed):
         # X_valid = X_valid[feature_cols]
 
         params = {
-            "objective": "lambdarank",
-            "metric": "ndcg",
-            "boosting_type": "gbdt",
+            "objective": "binary",
+            "metric": "auc",
+            "boosting_type": "dart",
             # 'lambdarank_truncation_level': 10,
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
@@ -210,8 +232,10 @@ def run_train(type, output_dir, single_fold, seed):
         gc.collect()
         # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
+        print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
+        ranker = lgb.Booster(model_file=f"{output_dir}/lgb_fold{fold}")
         # log_summary(ranker, save_model_checkpoint=True)
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
@@ -317,7 +341,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold, seed):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker")
+        wandb.init(project="kaggle-otto", job_type="dart")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
@@ -336,12 +360,13 @@ def main(single_fold, seed):
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
-    run_inference(output_dir, single_fold)
+    if not CFG.cv_only:
+    	run_inference(output_dir, single_fold)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_iterations", type=int, default=200)
+    parser.add_argument("--num_iterations", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
