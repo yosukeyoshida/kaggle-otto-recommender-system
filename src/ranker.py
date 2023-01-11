@@ -15,7 +15,7 @@ from wandb.lightgbm import log_summary, wandb_callback
 class CFG:
     wandb = True
     num_iterations = 200
-    cv_only = True
+    cv_only = False
     n_folds = 5
     dtypes = {
         "session": "int32",
