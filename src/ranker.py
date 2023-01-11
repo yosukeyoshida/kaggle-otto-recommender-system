@@ -139,6 +139,7 @@ def dump_pickle(path, o):
 
 
 def run_train(type, output_dir, single_fold, seed):
+    print(f"{type} train start")
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
@@ -147,6 +148,7 @@ def run_train(type, output_dir, single_fold, seed):
         path = "./input/lgbm_dataset/20230108/*"
     else:
         path = "./input/lgbm_dataset/20230111/*"
+    print(f"path={path}")
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 5)
     files_list = split_list(files, chunk_size)
@@ -348,9 +350,9 @@ def main(single_fold, seed):
     if CFG.wandb:
         wandb.log({"seed": seed})
 
-    clicks_recall = run_train("clicks", output_dir, single_fold, seed)
-    carts_recall = run_train("carts", output_dir, single_fold, seed)
     orders_recall = run_train("orders", output_dir, single_fold, seed)
+    carts_recall = run_train("carts", output_dir, single_fold, seed)
+    clicks_recall = run_train("clicks", output_dir, single_fold, seed)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
