@@ -14,7 +14,7 @@ from wandb.lightgbm import log_summary, wandb_callback
 
 class CFG:
     wandb = True
-    num_iterations = 2000
+    num_iterations = 200
     cv_only = True
     n_folds = 5
     dtypes = {
@@ -221,9 +221,12 @@ def run_train(type, output_dir, single_fold, seed):
         # X_valid = X_valid[feature_cols]
 
         params = {
-            "objective": "binary",
-            "metric": "auc",
-            "boosting_type": "dart",
+            "objective": "lambdarank",
+            "metric": "ndcg",
+            "boosting_type": "gbdt",
+            # "objective": "binary",
+            # "metric": "auc",
+            # "boosting_type": "dart",
             # 'lambdarank_truncation_level': 10,
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
@@ -237,10 +240,13 @@ def run_train(type, output_dir, single_fold, seed):
         gc.collect()
         # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
+        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        # for dart
+        # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
-        print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
-        ranker = lgb.Booster(model_file=f"{output_dir}/lgb_fold{fold}")
+        # for dart
+        # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
+        # ranker = lgb.Booster(model_file=f"{output_dir}/lgb_fold{fold}")
         # log_summary(ranker, save_model_checkpoint=True)
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
@@ -338,7 +344,7 @@ def run_inference(type, output_dir, single_fold):
 def main(single_fold, seed):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="dart")
+        wandb.init(project="kaggle-otto", job_type="ranker")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
@@ -364,7 +370,7 @@ def main(single_fold, seed):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_iterations", type=int, default=2000)
+    parser.add_argument("--num_iterations", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
