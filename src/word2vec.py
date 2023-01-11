@@ -1,4 +1,5 @@
 import glob
+import gc
 import argparse
 import os
 from collections import Counter
@@ -13,8 +14,9 @@ from util import calc_metrics, dump_pickle
 
 class CFG:
     wandb = True
-    cv_only = False
+    cv_only = True
     candidates_num = 100
+    nns_size = 20
 
 
 def read_files(path):
@@ -53,7 +55,7 @@ def main(cv, output_dir, **kwargs):
         most_recent_aid = AIDs
         nns = []
         for aid in most_recent_aid:
-            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], 20)]
+            nns += [w2vec.wv.index_to_key[i] for i in index.get_nns_by_item(aid2idx[aid], CFG.nns_size)]
         labels.append([aid for aid, cnt in Counter(nns).most_common(CFG.candidates_num)])
     pred_df = pd.DataFrame(data={"session": test_session_AIDs.index, "labels": labels})
     dump_pickle(os.path.join(output_dir, "predictions.pkl"), pred_df)
@@ -69,13 +71,16 @@ def main(cv, output_dir, **kwargs):
             modified_predictions = pred_df.copy()
             modified_predictions["type"] = st
             prediction_dfs.append(modified_predictions)
+        del modified_predictions
+        gc.collect()
         prediction_dfs = pd.concat(prediction_dfs).reset_index(drop=True)
         calc_metrics(prediction_dfs, output_dir, CFG.candidates_num, CFG.wandb)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--window", type=int, default=200)
+    parser.add_argument("--nns_size", type=int, default=20)
+    parser.add_argument("--candidates_num", type=int, default=100)
     args = parser.parse_args()
 
     run_name = None
@@ -88,6 +93,12 @@ if __name__ == "__main__":
         output_dir = "output/word2vec"
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
+    CFG.nns_size = args.nns_size
+    CFG.candidates_num = args.candidates_num
+    print(f"nns_size={CFG.nns_size}")
+    print(f"candidates_num={CFG.candidates_num}")
+    if CFG.wandb:
+        wandb.log({"nns_size": CFG.nns_size, "candidates_num": CFG.candidates_num})
     params = {}
     main(cv=True, output_dir=os.path.join(output_dir, "cv"), **params)
     if not CFG.cv_only:
