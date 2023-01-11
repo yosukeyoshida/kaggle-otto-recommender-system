@@ -143,9 +143,12 @@ def run_train(type, output_dir, single_fold, seed):
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = "./input/lgbm_dataset/*"
+    if type == "clicks":
+        path = "./input/lgbm_dataset/20230108/*"
+    else:
+        path = "./input/lgbm_dataset/20230111/*"
     files = glob.glob(path)
-    chunk_size = math.ceil(len(files) / 3)
+    chunk_size = math.ceil(len(files) / 5)
     files_list = split_list(files, chunk_size)
     train_list = []
     for i, files in enumerate(files_list):
@@ -279,11 +282,15 @@ def split_list(l, n):
         yield l[idx : idx + n]
 
 
-def run_inference(output_dir, single_fold):
-    path = "./input/lgbm_dataset_test/*"
+def run_inference(type, output_dir, single_fold):
+    print(f"{type} inference start")
+    if type == "clicks":
+        path = "./input/lgbm_dataset_test/20230108/*"
+    else:
+        path = "./input/lgbm_dataset_test/20230111/*"
     files = glob.glob(path)
     preds = []
-    chunk_size = math.ceil(len(files) / 5)
+    chunk_size = math.ceil(len(files) / 10)
     files_list = split_list(files, chunk_size)
     for files in files_list:
         dfs = []
@@ -295,47 +302,35 @@ def run_inference(output_dir, single_fold):
         del dfs
         gc.collect()
         feature_cols = test.drop(columns=["session"]).columns.tolist()
-        for type in ["clicks", "carts", "orders"]:
-            print(f"type={type}")
-            pred_folds = []
-            for fold in range(CFG.n_folds):
-                print(f"fold={fold}")
-                ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), "rb"))
-                pred = test[["session", "aid"]]
-                pred["score"] = ranker.predict(test[feature_cols])
-                pred["score"] = pred["score"].astype("float16")
-                pred["type"] = type
-                pred_folds.append(pred)
-                del pred, ranker
-                gc.collect()
-                if single_fold:
-                    break
-            pred = pred_folds[0]
-            if not single_fold:
-                for pf in pred_folds[1:]:
-                    pred["score"] += pf["score"]
-                    pred["score"] = pred["score"] / CFG.n_folds
-            preds.append(pred)
-            del pred_folds
+        pred_folds = []
+        for fold in range(CFG.n_folds):
+            print(f"fold={fold}")
+            ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), "rb"))
+            pred = test[["session", "aid"]]
+            pred["score"] = ranker.predict(test[feature_cols])
+            pred["score"] = pred["score"].astype("float16")
+            pred_folds.append(pred)
+            del pred, ranker
             gc.collect()
-        del test
+            if single_fold:
+                break
+        pred = pred_folds[0]
+        if not single_fold:
+            for pf in pred_folds[1:]:
+                pred["score"] += pf["score"]
+                pred["score"] = pred["score"] / CFG.n_folds
+        preds.append(pred)
+        del pred_folds, test
         gc.collect()
     preds = pd.concat(preds)
-    dump_pickle(os.path.join(output_dir, "preds.pkl"), preds)
-    dfs = []
-    for type in ["clicks", "carts", "orders"]:
-        print(type)
-        _preds = preds[preds["type"] == type]
-        _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
-        _preds = _preds.groupby("session")["aid"].apply(list)
-        _preds = _preds.to_frame().reset_index()
-        _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
-        dfs.append(_preds)
-        del _preds
-        gc.collect()
-    sub = pd.concat(dfs)
+    # dump_pickle(os.path.join(output_dir, "preds.pkl"), preds)
+    preds = preds.sort_values(["session", "score"]).groupby("session").tail(20)
+    preds = preds.groupby("session")["aid"].apply(list)
+    preds = preds.to_frame().reset_index()
+    preds["session_type"] = preds["session"].apply(lambda x: str(x) + f"_{type}")
+    sub = preds
     sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
-    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, f"submission_{type}.csv"), index=False)
 
 
 def main(single_fold, seed):
@@ -361,7 +356,8 @@ def main(single_fold, seed):
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
     if not CFG.cv_only:
-    	run_inference(output_dir, single_fold)
+        for type in ["clicks", "carts", "orders"]:
+            run_inference(type, output_dir, single_fold)
 
 
 if __name__ == "__main__":
