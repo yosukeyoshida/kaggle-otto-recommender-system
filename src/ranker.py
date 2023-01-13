@@ -143,7 +143,7 @@ def run_train(type, input_dir, output_dir, single_fold, seed):
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = f"./input/lgbm_dataset/{input_dir}/*"
+    path = f"./input/lgbm_dataset/{input_dir}/{type}/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -162,23 +162,10 @@ def run_train(type, input_dir, output_dir, single_fold, seed):
         _train = _train.merge(train_labels, how="left", on=["session", "aid"])
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
-        # positives = _train.loc[_train["gt"] == 1]
-        # negatives = _train.loc[_train["gt"] == 0].sample(n=len(positives) * 20, random_state=seed)
-        # print(f"positives: {len(positives)} negatives: {len(negatives)}")
-        # _train = pd.concat([positives, negatives], axis=0, ignore_index=True)
         train_list.append(_train)
-        # del positives, negatives
-        # gc.collect()
     train = pd.concat(train_list, axis=0, ignore_index=True)
     del train_labels_all
     gc.collect()
-    # if CFG.wandb:
-    #     wandb.log(
-    #         {
-    #             f"[{type}] train positive size": len(positives),
-    #             f"[{type}] train negative size": len(negatives),
-    #         }
-    #     )
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
@@ -346,7 +333,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold, input_dir, seed):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="20230112")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/negative_sampling_by_type")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
