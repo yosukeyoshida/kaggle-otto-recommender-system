@@ -138,7 +138,7 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, input_dir, output_dir, seed):
+def run_train(type, input_dir, output_dir, single_fold, seed):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
@@ -263,6 +263,8 @@ def run_train(type, input_dir, output_dir, seed):
         if CFG.wandb:
             wandb.log({f"[{type}][fold{fold}] recall": recall})
         dfs.append(joined)
+        if single_fold:
+            break
     joined = pd.concat(dfs)
     recall = joined["hits"].sum() / joined["gt_count"].sum()
     return recall
@@ -310,8 +312,10 @@ def run_inference(output_dir, single_fold):
                 pred_folds.append(pred)
                 del pred, ranker
                 gc.collect()
+                if single_fold:
+                    break
             pred = pred_folds[0]
-            if CFG.n_folds > 1:
+            if not single_fold:
                 for pf in pred_folds[1:]:
                     pred["score"] += pf["score"]
                 pred["score"] = pred["score"] / CFG.n_folds
@@ -339,7 +343,7 @@ def run_inference(output_dir, single_fold):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main(input_dir, seed):
+def main(single_fold, input_dir, seed):
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="ranker", group="20230112")
@@ -354,24 +358,23 @@ def main(input_dir, seed):
     if CFG.wandb:
         wandb.log({"seed": seed})
 
-    clicks_recall = run_train("clicks", input_dir, output_dir, seed)
-    carts_recall = run_train("carts", input_dir, output_dir, seed)
-    orders_recall = run_train("orders", input_dir, output_dir, seed)
+    clicks_recall = run_train("clicks", input_dir, output_dir, single_fold, seed)
+    carts_recall = run_train("carts", input_dir, output_dir, single_fold, seed)
+    orders_recall = run_train("orders", input_dir, output_dir, single_fold, seed)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
     if not CFG.cv_only:
-        run_inference(output_dir)
+        run_inference(output_dir, single_fold)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_iterations", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--n_folds", type=int, default=5)
     parser.add_argument("--input_dir", type=str, default=0)
+    parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
-    CFG.n_folds = args.n_folds
-    main(args.input_dir, args.seed)
+    main(args.single_fold, args.input_dir, args.seed)
