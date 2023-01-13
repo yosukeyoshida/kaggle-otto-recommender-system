@@ -143,7 +143,7 @@ def run_train(type, output_dir, single_fold, seed):
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = "./input/lgbm_dataset/*"
+    path = "./input/lgbm_dataset/20230108/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -284,7 +284,7 @@ def split_list(l, n):
 
 
 def run_inference(output_dir, single_fold):
-    path = "./input/lgbm_dataset_test/*"
+    path = "./input/lgbm_dataset_test/20230108/*"
     files = glob.glob(path)
     preds = []
     chunk_size = math.ceil(len(files) / 5)
