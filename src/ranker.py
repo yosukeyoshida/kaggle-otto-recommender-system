@@ -317,8 +317,7 @@ def run_inference(output_dir, single_fold):
     for type in ["clicks", "carts", "orders"]:
         print(type)
         _preds = preds[preds["type"] == type]
-        _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(50)
-        dump_pickle(os.path.join(output_dir, f"preds_{type}.pkl"), preds)
+        _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
         _preds = _preds.groupby("session")["aid"].apply(list)
         _preds = _preds.to_frame().reset_index()
         _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
