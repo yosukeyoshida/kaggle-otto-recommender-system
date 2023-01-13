@@ -1,3 +1,1 @@
-python src/ranker.py --seed 0
-python src/ranker.py --seed 1
-python src/ranker.py --seed 2
+python src/ranker.py --single_fold --input_dir 20230113

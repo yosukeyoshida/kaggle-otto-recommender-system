@@ -138,12 +138,12 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, output_dir, single_fold, seed):
+def run_train(type, input_dir, output_dir, single_fold, seed):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = "./input/lgbm_dataset/20230108/*"
+    path = f"./input/lgbm_dataset/{input_dir}/{type}/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -162,23 +162,10 @@ def run_train(type, output_dir, single_fold, seed):
         _train = _train.merge(train_labels, how="left", on=["session", "aid"])
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
-        positives = _train.loc[_train["gt"] == 1]
-        negatives = _train.loc[_train["gt"] == 0].sample(n=len(positives) * 20, random_state=seed)
-        print(f"positives: {len(positives)} negatives: {len(negatives)}")
-        _train = pd.concat([positives, negatives], axis=0, ignore_index=True)
         train_list.append(_train)
-        del positives, negatives
-        gc.collect()
     train = pd.concat(train_list, axis=0, ignore_index=True)
     del train_labels_all
     gc.collect()
-    # if CFG.wandb:
-    #     wandb.log(
-    #         {
-    #             f"[{type}] train positive size": len(positives),
-    #             f"[{type}] train negative size": len(negatives),
-    #         }
-    #     )
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     targets = train["gt"]
@@ -287,7 +274,7 @@ def run_inference(output_dir, single_fold):
     path = "./input/lgbm_dataset_test/20230108/*"
     files = glob.glob(path)
     preds = []
-    chunk_size = math.ceil(len(files) / 5)
+    chunk_size = math.ceil(len(files) / 10)
     files_list = split_list(files, chunk_size)
     for files in files_list:
         dfs = []
@@ -325,7 +312,7 @@ def run_inference(output_dir, single_fold):
         del test
         gc.collect()
     preds = pd.concat(preds)
-    dump_pickle(os.path.join(output_dir, "preds.pkl"), preds)
+    # dump_pickle(os.path.join(output_dir, "preds.pkl"), preds)
     dfs = []
     for type in ["clicks", "carts", "orders"]:
         print(type)
@@ -342,10 +329,10 @@ def run_inference(output_dir, single_fold):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main(single_fold, seed):
+def main(single_fold, input_dir, seed):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/negative_sampling_by_type")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
@@ -357,9 +344,9 @@ def main(single_fold, seed):
     if CFG.wandb:
         wandb.log({"seed": seed})
 
-    clicks_recall = run_train("clicks", output_dir, single_fold, seed)
-    carts_recall = run_train("carts", output_dir, single_fold, seed)
-    orders_recall = run_train("orders", output_dir, single_fold, seed)
+    clicks_recall = run_train("clicks", input_dir, output_dir, single_fold, seed)
+    carts_recall = run_train("carts", input_dir, output_dir, single_fold, seed)
+    orders_recall = run_train("orders", input_dir, output_dir, single_fold, seed)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
@@ -372,7 +359,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_iterations", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--input_dir", type=str, default=0)
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
-    main(args.single_fold, args.seed)
+    main(args.single_fold, args.input_dir, args.seed)
