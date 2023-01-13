@@ -318,7 +318,7 @@ def run_inference(output_dir, single_fold):
             if not single_fold:
                 for pf in pred_folds[1:]:
                     pred["score"] += pf["score"]
-                    pred["score"] = pred["score"] / CFG.n_folds
+                pred["score"] = pred["score"] / CFG.n_folds
             preds.append(pred)
             del pred_folds
             gc.collect()
