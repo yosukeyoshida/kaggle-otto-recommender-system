@@ -208,7 +208,7 @@ def run_train(type, output_dir, single_fold):
             'custom_metric': ['NDCG', "AUC:type=Ranking"],
             'random_seed': 42,
             "has_time": True,
-            'early_stopping_rounds': 20,
+            'early_stopping_rounds': 100,
             "use_best_model": True,
             "task_type": "GPU",
         }
