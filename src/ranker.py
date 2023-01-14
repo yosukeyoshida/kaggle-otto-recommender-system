@@ -166,6 +166,7 @@ def run_train(type, output_dir, single_fold):
         _train["gt"] = _train["gt"].astype("int8")
         train_list.append(_train)
     train = pd.concat(train_list, axis=0, ignore_index=True)
+    train = train.sample(frac=1, random_state=42, ignore_index=True)
     del train_labels_all
     gc.collect()
 
