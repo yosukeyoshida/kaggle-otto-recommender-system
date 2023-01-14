@@ -206,7 +206,7 @@ def run_train(type, output_dir, single_fold):
         params = {
             "objective": "lambdarank",
             "metric": "ndcg",
-            "boosting_type": "gbdt",
+            "boosting_type": "dart",
             # "objective": "binary",
             # "metric": "auc",
             # "boosting_type": "dart",
