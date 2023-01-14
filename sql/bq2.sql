@@ -20,18 +20,20 @@ WITH joined AS (
     FROM `kaggle-352109.otto.otto-validation-test-labels`, UNNEST(ground_truth.list) AS list
   ) t ON t.session = c.session AND t.gt = c.aid
 ), target_session AS (
-  SELECT *
+  SELECT
+    session,
+    rand() AS random
   FROM (
     SELECT
       session,
       SUM(CASE WHEN type = "clicks" THEN 1 ELSE 0 END) AS clicks_cnt,
       SUM(CASE WHEN type = "carts" THEN 1 ELSE 0 END) AS carts_cnt,
-      SUM(CASE WHEN type = "orders" THEN 1 ELSE 0 END) AS orders_cnt
+      SUM(CASE WHEN type = "orders" THEN 1 ELSE 0 END) AS orders_cnt,
     FROM joined
     WHERE type is not NULL
     GROUP BY session
   ) t
-  WHERE t.clicks_cnt > 0  -- FIXME
+  WHERE t.clicks_cnt > 0 ORDER BY random LIMIT 300000
 --   WHERE t.carts_cnt > 0
 --   WHERE t.orders_cnt > 0
 )
