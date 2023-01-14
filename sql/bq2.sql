@@ -1,8 +1,8 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20230113/clicks/train_*.parquet',  -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset/20230113/carts/train_*.parquet',
---     uri='gs://kaggle-yosuke/lgbm_dataset/20230113/orders/train_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20230114/clicks/train_*.parquet',  -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset/20230114/carts/train_*.parquet',
+--     uri='gs://kaggle-yosuke/lgbm_dataset/20230114/orders/train_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -11,7 +11,7 @@ WITH joined AS (
   SELECT
     c.*,
     t.type
-  FROM `kaggle-352109.otto.absurd-shadow-602` c
+  FROM `kaggle-352109.otto.20230114` c
   LEFT JOIN (
     SELECT
       session,
@@ -67,7 +67,7 @@ WITH joined AS (
 )
 
 SELECT c.*
-FROM `kaggle-352109.otto.absurd-shadow-602` c
+FROM `kaggle-352109.otto.20230114` c
 INNER JOIN (
   SELECT *
   FROM (
