@@ -165,9 +165,10 @@ def run_train(type, output_dir, single_fold):
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
         train_list.append(_train)
+        del _train
+        gc.collect()
     train = pd.concat(train_list, axis=0, ignore_index=True)
-    train = train.sample(frac=1, random_state=42, ignore_index=True)
-    del train_labels_all
+    del train_labels_all, train_list
     gc.collect()
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
