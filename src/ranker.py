@@ -134,7 +134,6 @@ def read_files(path):
 
     for file in glob.glob(path):
         df = pd.read_parquet(file)
-        df = df.drop(columns=["session_aid_last_type"])
         for col, dtype in CFG.dtypes.items():
             df[col] = df[col].astype(dtype)
         for col in CFG.float_cols:
@@ -298,7 +297,6 @@ def run_inference(output_dir, single_fold):
         dfs = []
         for file in files:
             df = pd.read_parquet(file)
-            df = df.drop(columns=["session_aid_last_type"])
             df = cast_cols(df)
             dfs.append(df)
         test = pd.concat(dfs)
