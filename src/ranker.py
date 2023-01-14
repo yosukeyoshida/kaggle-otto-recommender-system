@@ -204,12 +204,12 @@ def run_train(type, output_dir, single_fold):
         # X_valid = X_valid[feature_cols]
 
         params = {
-            "objective": "lambdarank",
-            "metric": "ndcg",
-            "boosting_type": "gbdt",
-            # "objective": "binary",
-            # "metric": "auc",
-            # "boosting_type": "dart",
+            # "objective": "lambdarank",
+            # "metric": "ndcg",
+            # "boosting_type": "gbdt",
+            "objective": "binary",
+            "metric": "auc",
+            "boosting_type": "dart",
             # 'lambdarank_truncation_level': 10,
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
@@ -333,7 +333,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="main")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/binary-dart")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
