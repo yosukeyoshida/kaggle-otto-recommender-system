@@ -17,7 +17,7 @@ class CFG:
     num_iterations = 200
     cv_only = False
     n_folds = 5
-    input_train_dir = "20230113"
+    input_train_dir = "20230113_2"
     input_test_dir = "20230108"
     dtypes = {
         "session": "int32",
@@ -333,7 +333,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="main")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/neg30")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
