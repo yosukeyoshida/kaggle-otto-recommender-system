@@ -17,6 +17,8 @@ class CFG:
     num_iterations = 200
     cv_only = False
     n_folds = 5
+    input_train_dir = "20230113"
+    input_test_dir = "20230113"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -138,12 +140,12 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, input_dir, output_dir, single_fold, seed):
+def run_train(type, output_dir, single_fold):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = f"./input/lgbm_dataset/{input_dir}/{type}/*"
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -168,6 +170,8 @@ def run_train(type, input_dir, output_dir, single_fold, seed):
     gc.collect()
 
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
+    if CFG.wandb:
+        wandb.log({f"feature size": len(feature_cols)})
     targets = train["gt"]
     group = train["session"]
     train = train[feature_cols + ["session"]]
@@ -189,13 +193,9 @@ def run_train(type, input_dir, output_dir, single_fold, seed):
 
         session_length = X_train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_train = session_length["session_length"].values
-        X_train = X_train.merge(session_length, on="session")
-        X_train["session_length"] = X_train["session_length"].astype("int16")
 
         session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
         session_lengths_valid = session_length["session_length"].values
-        X_valid = X_valid.merge(session_length, on="session")
-        X_valid["session_length"] = X_valid["session_length"].astype("int16")
         del session_length
         gc.collect()
 
@@ -271,7 +271,7 @@ def split_list(l, n):
 
 
 def run_inference(output_dir, single_fold):
-    path = "./input/lgbm_dataset_test/20230108/*"
+    path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
     files = glob.glob(path)
     preds = []
     chunk_size = math.ceil(len(files) / 10)
@@ -329,10 +329,10 @@ def run_inference(output_dir, single_fold):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main(single_fold, input_dir, seed):
+def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/negative_sampling_by_type")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="main")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
@@ -340,13 +340,9 @@ def main(single_fold, input_dir, seed):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    print(f"seed={seed}")
-    if CFG.wandb:
-        wandb.log({"seed": seed})
-
-    clicks_recall = run_train("clicks", input_dir, output_dir, single_fold, seed)
-    carts_recall = run_train("carts", input_dir, output_dir, single_fold, seed)
-    orders_recall = run_train("orders", input_dir, output_dir, single_fold, seed)
+    clicks_recall = run_train("clicks", output_dir, single_fold)
+    carts_recall = run_train("carts", output_dir, single_fold)
+    orders_recall = run_train("orders", output_dir, single_fold)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
@@ -357,10 +353,6 @@ def main(single_fold, input_dir, seed):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_iterations", type=int, default=200)
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--input_dir", type=str, default=0)
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
-    CFG.num_iterations = args.num_iterations
-    main(args.single_fold, args.input_dir, args.seed)
+    main(args.single_fold)
