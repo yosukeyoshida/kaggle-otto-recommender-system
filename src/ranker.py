@@ -9,7 +9,7 @@ import lightgbm as lgb
 import pandas as pd
 import wandb
 from sklearn.model_selection import GroupKFold
-from wandb.lightgbm import log_summary, wandb_callback
+from wandb.lightgbm import wandb_callback
 
 
 class CFG:
