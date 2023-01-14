@@ -22,7 +22,7 @@ class CFG:
     debug = False
     cv_only = False
     wandb = True
-    candidates_num = 30
+    candidates_num = 100
 
 
 def load_test(cv: bool):

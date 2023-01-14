@@ -130,8 +130,8 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.covisit_cv` -- FIXME
---     FROM `kaggle-352109.otto.covisit`
+    FROM `kaggle-352109.otto.covisit_c100_cv` -- FIXME
+--     FROM `kaggle-352109.otto.covisit_c100`
     WHERE aid is not NULL
     GROUP BY session, aid
 ), w2v AS (
@@ -171,13 +171,13 @@ WITH aid_list AS (
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.w2v_sg_cv` -- FIXME
---     FROM `kaggle-352109.otto.w2v_sg`
+    FROM `kaggle-352109.otto.w2v_c100_cv` -- FIXME
+--     FROM `kaggle-352109.otto.w2v_c100`
     WHERE aid is not NULL
 ), gru4rec AS (
     SELECT
         session,
-        list.item AS aid,
+        aid,
         NULL AS session_aid_interaction_cnt,
         NULL AS session_aid_last_type,
         NULL AS avg_action_num_reverse_chrono,
@@ -208,12 +208,12 @@ WITH aid_list AS (
         NULL AS covisit_carts_candidate_num,
         NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
-        ROW_NUMBER() OVER (PARTITION BY session)  AS gru4rec_candidate_num,
+        rank AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
-    FROM `kaggle-352109.otto.gru4rec_aggs_cv`,   -- FIXME
---     FROM `kaggle-352109.otto.gru4rec_aggs`,
-    UNNEST(labels.list) AS list
+    FROM `kaggle-352109.otto.gru4rec_c100_cv` -- FIXME
+--     FROM `kaggle-352109.otto.gru4rec_c100`
+    WHERE aid is not NULL
 ), narm AS (
     SELECT
         session,

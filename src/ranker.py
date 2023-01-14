@@ -16,6 +16,7 @@ from wandb.lightgbm import log_summary, wandb_callback
 class CFG:
     wandb = True
     num_iterations = 200
+    cv_only = False
     n_folds = 5
     dtypes = {
         "session": "int32",
@@ -106,6 +107,27 @@ class CFG:
         "session_aid_interaction_orders_ratio",
     ]
 
+global max_score
+global best_iteration
+max_score = 0
+best_iteration = 0
+
+def save_model(i, type, save_model_dir):
+    def callback(env):
+        global max_score
+        global best_iteration
+        iteration = env.iteration
+        score = env.evaluation_result_list[0][2]
+        if iteration % 100 == 0:
+            print("iteration {}, score= {:.05f}".format(iteration, score))
+        if score > max_score:
+            max_score = score
+            # print('High Score: iteration {}, score={:.05f}'.format(iteration, score))
+            best_iteration = iteration
+            env.model.save_model(f"{save_model_dir}/lgb_fold{i}")
+    callback.order = 0
+    return callback
+
 
 def read_files(path):
     dfs = []
@@ -136,26 +158,35 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, output_dir, single_fold, seed):
-    train = read_files("./input/lgbm_dataset/*")
+def run_train(type, input_dir, output_dir, single_fold, seed):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
-    train = train.merge(train_labels, how="left", on=["session", "aid"])
+
+    path = f"./input/lgbm_dataset/{input_dir}/{type}/*"
+    files = glob.glob(path)
+    chunk_size = math.ceil(len(files) / 3)
+    files_list = split_list(files, chunk_size)
+    train_list = []
+    for i, files in enumerate(files_list):
+        print(f"chunk{i}")
+        dfs = []
+        for file in files:
+            df = pd.read_parquet(file)
+            df = cast_cols(df)
+            dfs.append(df)
+        _train = pd.concat(dfs, axis=0, ignore_index=True)
+        del dfs
+        gc.collect()
+
+        _train = _train.merge(train_labels, how="left", on=["session", "aid"])
+        _train["gt"].fillna(0, inplace=True)
+        _train["gt"] = _train["gt"].astype("int8")
+        train_list.append(_train)
+    train = pd.concat(train_list, axis=0, ignore_index=True)
     del train_labels_all
     gc.collect()
-    train["gt"].fillna(0, inplace=True)
-    train["gt"] = train["gt"].astype("int8")
-    train = train.reset_index(drop=True)
-    print(train.dtypes)
-    sessions = train["session"].unique().tolist()
-    random.seed(seed)
-    if CFG.wandb:
-        wandb.log({f"seed": seed})
-    sample_sessions = random.sample(sessions, 500000)
-    train = train[train["session"].isin(sample_sessions)]
-    train.reset_index(drop=True, inplace=True)
-    del sessions, sample_sessions
+
     feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     if CFG.wandb:
         wandb.log({f"feature size": len(feature_cols)})
@@ -193,6 +224,9 @@ def run_train(type, output_dir, single_fold, seed):
             "objective": "lambdarank",
             "metric": "ndcg",
             "boosting_type": "gbdt",
+            # "objective": "binary",
+            # "metric": "auc",
+            # "boosting_type": "dart",
             # 'lambdarank_truncation_level': 10,
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
@@ -207,7 +241,10 @@ def run_train(type, output_dir, single_fold, seed):
         # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
+        # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
+        # ranker = lgb.Booster(model_file=f"{output_dir}/lgb_fold{fold}")
         # log_summary(ranker, save_model_checkpoint=True)
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
@@ -252,10 +289,10 @@ def split_list(l, n):
 
 
 def run_inference(output_dir, single_fold):
-    path = "./input/lgbm_dataset_test/*"
+    path = "./input/lgbm_dataset_test/20230108/*"
     files = glob.glob(path)
     preds = []
-    chunk_size = math.ceil(len(files) / 5)
+    chunk_size = math.ceil(len(files) / 10)
     files_list = split_list(files, chunk_size)
     for files in files_list:
         dfs = []
@@ -287,14 +324,14 @@ def run_inference(output_dir, single_fold):
             if not single_fold:
                 for pf in pred_folds[1:]:
                     pred["score"] += pf["score"]
-                    pred["score"] = pred["score"] / CFG.n_folds
+                pred["score"] = pred["score"] / CFG.n_folds
             preds.append(pred)
             del pred_folds
             gc.collect()
         del test
         gc.collect()
     preds = pd.concat(preds)
-    dump_pickle(os.path.join(output_dir, "preds.pkl"), preds)
+    # dump_pickle(os.path.join(output_dir, "preds.pkl"), preds)
     dfs = []
     for type in ["clicks", "carts", "orders"]:
         print(type)
@@ -311,10 +348,10 @@ def run_inference(output_dir, single_fold):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main(single_fold, seed):
+def main(single_fold, input_dir, seed):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/negative_sampling_by_type")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
@@ -322,21 +359,23 @@ def main(single_fold, seed):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir, single_fold, seed)
-    carts_recall = run_train("carts", output_dir, single_fold, seed)
-    orders_recall = run_train("orders", output_dir, single_fold, seed)
+    clicks_recall = run_train("clicks", input_dir, output_dir, single_fold, seed)
+    carts_recall = run_train("carts", input_dir, output_dir, single_fold, seed)
+    orders_recall = run_train("orders", input_dir, output_dir, single_fold, seed)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
-    run_inference(output_dir, single_fold)
+    if not CFG.cv_only:
+        run_inference(output_dir, single_fold)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_iterations", type=int, default=200)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--input_dir", type=str, default=0)
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
     CFG.num_iterations = args.num_iterations
-    main(args.single_fold, args.seed)
+    main(args.single_fold, args.input_dir, args.seed)
