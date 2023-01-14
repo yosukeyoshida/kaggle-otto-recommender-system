@@ -19,7 +19,8 @@ WITH aid_list AS (
           sec_to_session_end,
           session_interaction_length,
           log_recency_score,
-          log_recency_score / (CASE WHEN type = 'clicks' THEN 1 WHEN type = 'carts' THEN 6 WHEN type = 'orders' THEN 3 END) AS type_weighted_log_recency_score
+          (CASE WHEN type = 'clicks' THEN 1 WHEN type = 'carts' THEN 6 WHEN type = 'orders' THEN 3 END) * log_recency_score AS type_weighted_log_recency_score
+--           log_recency_score / (CASE WHEN type = 'clicks' THEN 1 WHEN type = 'carts' THEN 6 WHEN type = 'orders' THEN 3 END) AS type_weighted_log_recency_score
     FROM (
       SELECT
           session,
