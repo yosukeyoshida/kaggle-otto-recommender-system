@@ -1,5 +1,4 @@
 import argparse
-import random
 import math
 import gc
 import glob
@@ -10,14 +9,16 @@ import lightgbm as lgb
 import pandas as pd
 import wandb
 from sklearn.model_selection import GroupKFold
-from wandb.lightgbm import log_summary, wandb_callback
+from wandb.lightgbm import wandb_callback
 
 
 class CFG:
     wandb = True
-    num_iterations = 200
+    num_iterations = 2000
     cv_only = False
     n_folds = 5
+    input_train_dir = "20230114"
+    input_test_dir = "20230114"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -157,12 +158,12 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, input_dir, output_dir, single_fold, seed):
+def run_train(type, output_dir, single_fold):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = f"./input/lgbm_dataset/{input_dir}/{type}/*"
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -230,16 +231,18 @@ def run_train(type, input_dir, output_dir, single_fold, seed):
             # 'ndcg_eval_at': [10, 5, 20],
             "num_iterations": CFG.num_iterations,
             "random_state": 42,
-            # "bagging_fraction": 0.5,
-            # "bagging_freq": 10,
+            "bagging_fraction": 0.8,
+            "bagging_freq": 1,
+            'feature_fraction': 0.8,
+            'learning_rate': 0.01,
+            'num_leaves': 63,
         }
         _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
-        # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=100, verbose=True)])
         # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
         # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
@@ -288,7 +291,7 @@ def split_list(l, n):
 
 
 def run_inference(output_dir, single_fold):
-    path = "./input/lgbm_dataset_test/20230108/*"
+    path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
     files = glob.glob(path)
     preds = []
     chunk_size = math.ceil(len(files) / 10)
@@ -346,7 +349,7 @@ def run_inference(output_dir, single_fold):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main(single_fold, input_dir, seed):
+def main(single_fold):
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="ranker", group="fix/sql")
@@ -357,9 +360,9 @@ def main(single_fold, input_dir, seed):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", input_dir, output_dir, single_fold, seed)
-    carts_recall = run_train("carts", input_dir, output_dir, single_fold, seed)
-    orders_recall = run_train("orders", input_dir, output_dir, single_fold, seed)
+    clicks_recall = run_train("clicks", output_dir, single_fold)
+    carts_recall = run_train("carts", output_dir, single_fold)
+    orders_recall = run_train("orders", output_dir, single_fold)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
@@ -370,10 +373,6 @@ def main(single_fold, input_dir, seed):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num_iterations", type=int, default=200)
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--input_dir", type=str, default=0)
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
-    CFG.num_iterations = args.num_iterations
-    main(args.single_fold, args.input_dir, args.seed)
+    main(args.single_fold)
