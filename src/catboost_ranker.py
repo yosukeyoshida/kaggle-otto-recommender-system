@@ -12,7 +12,7 @@ from sklearn.model_selection import GroupKFold
 
 class CFG:
     wandb = True
-    num_iterations = 200
+    num_iterations = 500
     cv_only = False
     n_folds = 5
     input_train_dir = "20230113"
