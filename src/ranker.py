@@ -18,7 +18,7 @@ class CFG:
     cv_only = False
     n_folds = 5
     input_train_dir = "20230113"
-    input_test_dir = "20230113"
+    input_test_dir = "20230108"
     dtypes = {
         "session": "int32",
         "aid": "int32",
