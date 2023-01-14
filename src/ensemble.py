@@ -1,10 +1,10 @@
 import pandas as pd
 from collections import Counter
 
-df0 = pd.read_csv("./output/lgbm/graceful-field-499/submission.csv")
-df1 = pd.read_csv("./output/lgbm/absurd-shadow-602/submission.csv")
-df2 = pd.read_csv("./output/lgbm/fragrant-energy-603/submission.csv")
-df3 = pd.read_csv("./output/lgbm/stellar-oath-604/submission.csv")
+df0 = pd.read_csv("./output/lgbm/dandy-snowflake-662/submission.csv")  # LGBMRanker gbdt
+df1 = pd.read_csv("./output/lgbm/rich-universe-675/submission.csv")    # CatboostRanker
+df2 = pd.read_csv("./output/lgbm/generous-river-676/submission.csv")   # LGBMRanker dart
+df3 = pd.read_csv("./output/lgbm/daily-shadow-677/submission.csv")     # LGBM binary dart
 # df4 = pd.read_csv("../output/lgbm/soft-deluge-574/submission.csv")
 
 df0["labels"] = df0["labels"].apply(lambda x: x.split())
