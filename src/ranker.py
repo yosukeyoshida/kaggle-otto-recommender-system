@@ -61,6 +61,7 @@ class CFG:
         "gru4rec_candidate_num",
         "narm_candidate_num",
         "sasrec_candidate_num",
+        "srgnn_candidate_num",
         "session_clicks_carts_ratio",
         "session_carts_orders_ratio",
         "session_clicks_orders_ratio",
