@@ -175,7 +175,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--type", type=str)
     parser.add_argument("--model_name", type=str)
-    parser.add_argument("--seed", type=int)
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
     CFG.model_name = args.model_name

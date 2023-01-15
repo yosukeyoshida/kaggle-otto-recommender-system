@@ -1,1 +1,2 @@
-python src/ranker.py --single_fold
+python src/recb.py --model_name GRU4Rec --type cv
+python src/recb.py --model_name GRU4Rec --type sub
