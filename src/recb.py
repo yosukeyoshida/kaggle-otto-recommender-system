@@ -106,7 +106,7 @@ def main(cv, output_dir, seed):
         "train_neg_sample_args": None,
         "epochs": 10,
         "stopping_step": 3,
-        "train_batch_size": 2048,
+        "train_batch_size": 1024,
         "eval_batch_size": 1024,
         "MAX_ITEM_LIST_LENGTH": CFG.MAX_ITEM,
         "eval_args": {"split": {"RS": [9, 1, 0]}, "group_by": "user", "order": "TO", "mode": "full"},
