@@ -11,7 +11,7 @@ WITH joined AS (
   SELECT
     c.*,
     t.type
-  FROM `kaggle-352109.otto.20230115` c
+  FROM `kaggle-352109.otto.20230115_2` c
   LEFT JOIN (
     SELECT
       session,
@@ -67,7 +67,7 @@ WITH joined AS (
 )
 
 SELECT c.*
-FROM `kaggle-352109.otto.20230115` c
+FROM `kaggle-352109.otto.20230115_2` c
 INNER JOIN (
   SELECT *
   FROM (
