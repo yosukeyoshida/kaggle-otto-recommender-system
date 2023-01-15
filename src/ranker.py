@@ -17,8 +17,8 @@ class CFG:
     num_iterations = 200
     cv_only = False
     n_folds = 5
-    input_train_dir = "20230113"
-    input_test_dir = "20230108"
+    input_train_dir = "20230115"
+    input_test_dir = "20230115"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -221,9 +221,8 @@ def run_train(type, output_dir, single_fold):
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
-        # lgb.early_stopping(stopping_rounds=100, verbose=True),
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback()])
+        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
         # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
         # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
@@ -333,7 +332,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="main")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/order-ranking")
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
