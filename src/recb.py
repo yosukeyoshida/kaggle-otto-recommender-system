@@ -72,10 +72,10 @@ def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
 
 def main(cv, output_dir, seed):
     if cv:
-        train_file_path = "./input/otto-validation/*_parquet/*"
+        train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
     else:
-        train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+        train_file_path = "./input/otto-validation/test_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
 
     _train = pl.read_parquet(train_file_path)
