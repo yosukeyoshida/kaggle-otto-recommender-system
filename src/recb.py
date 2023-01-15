@@ -24,7 +24,6 @@ class CFG:
     model_name = "GRU4Rec"  # NARM
     MAX_ITEM = 20
     candidates_num = 100
-    use_test_only = False
 
 
 class ItemHistory(BaseModel):
@@ -73,23 +72,13 @@ def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
 
 def main(cv, output_dir, seed):
     if cv:
-        if CFG.use_test_only:
-            train_file_path = "./input/otto-validation/test_parquet/*"
-        else:
-            train_file_path = "./input/otto-validation/*_parquet/*"
+        train_file_path = "./input/otto-validation/*_parquet/*"
         test_file_path = "./input/otto-validation/test_parquet/*"
     else:
-        if CFG.use_test_only:
-            train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
-        else:
-            train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+        train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
 
     _train = pl.read_parquet(train_file_path)
-    if not CFG.use_test_only:
-        sessions = _train["session"].unique()
-        sample_sessions = sessions.sample(n=2000000, seed=seed)
-        _train = _train.filter(pl.col("session").is_in(sample_sessions))
     _train = _train.to_pandas()
     _train["session"] = _train["session"].astype("int32")
     _train["aid"] = _train["aid"].astype("int32")
@@ -111,8 +100,8 @@ def main(cv, output_dir, seed):
         "USER_ID_FIELD": "session",
         "ITEM_ID_FIELD": "aid",
         "TIME_FIELD": "ts",
-        # "user_inter_num_interval": "[5,inf)",
-        # "item_inter_num_interval": "[5,inf)",
+        "user_inter_num_interval": "[5,inf)",
+        "item_inter_num_interval": "[5,inf)",
         "load_col": {"inter": ["session", "aid", "ts"]},
         "train_neg_sample_args": None,
         "epochs": 10,
@@ -127,9 +116,6 @@ def main(cv, output_dir, seed):
         "log_wandb": True,
         "wandb_project": "kaggle-otto",
     }
-    if CFG.use_test_only:
-        parameter_dict["user_inter_num_interval"] = "[5,inf)"
-        parameter_dict["item_inter_num_interval"] = "[5,inf)"
 
     config = Config(model=CFG.model_name, dataset="recbox_data", config_dict=parameter_dict)
     # print(config)
