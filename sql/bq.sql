@@ -1,14 +1,27 @@
 EXPORT DATA
   OPTIONS(
---     uri='gs://kaggle-yosuke/lgbm_dataset/20230115_2/train_*.parquet', -- FIXME
-    uri='gs://kaggle-yosuke/lgbm_dataset_test/20230115_2/test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20230116/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20230116/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
 AS
-WITH session_stats1 AS (
+WITH day_num AS (
+  SELECT
+      dt,
+      ROW_NUMBER() OVER (ORDER BY dt) AS num
+  FROM (
+      SELECT
+          CAST(FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(ts/1000 AS int))) as DATE) AS dt
+      FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--       FROM `kaggle-352109.otto.test`
+      GROUP BY dt
+  )
+), session_stats1 AS (
     SELECT
         session,
+        min_dt,
+        max_dt,
         session_clicks_cnt,
         session_carts_cnt,
         session_orders_cnt,
@@ -21,14 +34,16 @@ WITH session_stats1 AS (
     FROM (
         SELECT
             session,
+            MIN(CAST(FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(ts/1000 AS int))) as DATE)) AS min_dt,
+            MAX(CAST(FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(ts/1000 AS int))) as DATE)) AS max_dt,
             SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS session_clicks_cnt,
             SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS session_carts_cnt,
             SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS session_orders_cnt,
             COUNT(DISTINCT(CASE WHEN type = 'clicks' THEN aid ELSE NULL END)) AS session_clicks_unique_aid,
             COUNT(DISTINCT(CASE WHEN type = 'carts' THEN aid ELSE NULL END)) AS session_carts_unique_aid,
             COUNT(DISTINCT(CASE WHEN type = 'orders' THEN aid ELSE NULL END)) AS session_orders_unique_aid
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
         GROUP BY session
     )
 ), session_stats2 AS (
@@ -53,8 +68,8 @@ WITH session_stats1 AS (
                 MIN(CASE WHEN type = 'clicks' THEN ts ELSE NULL END) AS first_clicks_ts,
                 MIN(CASE WHEN type = 'carts' THEN ts ELSE NULL END) AS first_carts_ts,
                 MIN(CASE WHEN type = 'orders' THEN ts ELSE NULL END) AS first_orders_ts
---             FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-                FROM `kaggle-352109.otto.test`
+            FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--             FROM `kaggle-352109.otto.test`
             GROUP BY session, aid
         ) t
     ) t
@@ -76,9 +91,13 @@ WITH session_stats1 AS (
         s2.max_sec_session_clicks_carts,
         s2.avg_sec_session_carts_orders,
         s2.min_sec_session_carts_orders,
-        s2.max_sec_session_carts_orders
+        s2.max_sec_session_carts_orders,
+        d1.num AS min_day_num,
+        d2.num AS max_day_num
     FROM session_stats1 s1
     INNER JOIN session_stats2 s2 ON s2.session = s1.session
+    INNER JOIN day_num d1 ON d1.dt = s1.min_dt
+    INNER JOIN day_num d2 ON d2.dt = s1.max_dt
 ), aid_stats1 AS (
     SELECT
         aid,
@@ -103,8 +122,8 @@ WITH session_stats1 AS (
             COUNT(DISTINCT(CASE WHEN type = 'clicks' THEN session ELSE NULL END)) AS clicks_uu,
             COUNT(DISTINCT(CASE WHEN type = 'carts' THEN session ELSE NULL END)) AS carts_uu,
             COUNT(DISTINCT(CASE WHEN type = 'orders' THEN session ELSE NULL END)) AS orders_uu
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
         GROUP BY aid
     ) t
 ), aid_stats2 AS (
@@ -129,12 +148,67 @@ WITH session_stats1 AS (
                 MIN(CASE WHEN type = 'clicks' THEN ts ELSE NULL END) AS first_clicks_ts,
                 MIN(CASE WHEN type = 'carts' THEN ts ELSE NULL END) AS first_carts_ts,
                 MIN(CASE WHEN type = 'orders' THEN ts ELSE NULL END) AS first_orders_ts
---             FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-                FROM `kaggle-352109.otto.test`
+            FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--             FROM `kaggle-352109.otto.test`
             GROUP BY session, aid
         ) t
     ) t
     GROUP BY aid
+), daily_rank AS (
+  SELECT
+      t.dt,
+      d.num AS day_num,
+      t.aid,
+      RANK() OVER (PARTITION BY t.dt ORDER BY t.clicks_cnt DESC) AS clicks_rank,
+      RANK() OVER (PARTITION BY t.dt ORDER BY t.carts_cnt DESC) AS carts_rank,
+      RANK() OVER (PARTITION BY t.dt ORDER BY t.orders_cnt DESC) AS orders_rank,
+      RANK() OVER (PARTITION BY t.dt ORDER BY t.clicks_uu DESC) AS clicks_uu_rank,
+      RANK() OVER (PARTITION BY t.dt ORDER BY t.carts_uu DESC) AS carts_uu_rank,
+      RANK() OVER (PARTITION BY t.dt ORDER BY t.orders_uu DESC) AS orders_uu_rank
+  FROM (
+      SELECT
+          CAST(FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(ts/1000 AS int))) as DATE) AS dt,
+          aid,
+          SUM(CASE WHEN type = 'clicks' THEN 1 ELSE 0 END) AS clicks_cnt,
+          SUM(CASE WHEN type = 'carts' THEN 1 ELSE 0 END) AS carts_cnt,
+          SUM(CASE WHEN type = 'orders' THEN 1 ELSE 0 END) AS orders_cnt,
+          COUNT(DISTINCT(CASE WHEN type = 'clicks' THEN session ELSE NULL END)) AS clicks_uu,
+          COUNT(DISTINCT(CASE WHEN type = 'carts' THEN session ELSE NULL END)) AS carts_uu,
+          COUNT(DISTINCT(CASE WHEN type = 'orders' THEN session ELSE NULL END)) AS orders_uu
+      FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--       FROM `kaggle-352109.otto.test`
+      GROUP BY dt, aid
+  ) t
+  INNER JOIN day_num d ON d.dt = t.dt
+), aid_stats3 AS (
+  SELECT
+    aid,
+    MAX(CASE WHEN day_num = 1 THEN clicks_rank ELSE NULL END) AS clicks_rank_day1,
+    MAX(CASE WHEN day_num = 2 THEN clicks_rank ELSE NULL END) AS clicks_rank_day2,
+    MAX(CASE WHEN day_num = 3 THEN clicks_rank ELSE NULL END) AS clicks_rank_day3,
+    MAX(CASE WHEN day_num = 4 THEN clicks_rank ELSE NULL END) AS clicks_rank_day4,
+    MAX(CASE WHEN day_num = 5 THEN clicks_rank ELSE NULL END) AS clicks_rank_day5,
+    MAX(CASE WHEN day_num = 6 THEN clicks_rank ELSE NULL END) AS clicks_rank_day6,
+    MAX(CASE WHEN day_num = 7 THEN clicks_rank ELSE NULL END) AS clicks_rank_day7,
+    MAX(CASE WHEN day_num = 8 THEN clicks_rank ELSE NULL END) AS clicks_rank_day8,
+    MAX(CASE WHEN day_num = 1 THEN carts_rank ELSE NULL END) AS carts_rank_day1,
+    MAX(CASE WHEN day_num = 2 THEN carts_rank ELSE NULL END) AS carts_rank_day2,
+    MAX(CASE WHEN day_num = 3 THEN carts_rank ELSE NULL END) AS carts_rank_day3,
+    MAX(CASE WHEN day_num = 4 THEN carts_rank ELSE NULL END) AS carts_rank_day4,
+    MAX(CASE WHEN day_num = 5 THEN carts_rank ELSE NULL END) AS carts_rank_day5,
+    MAX(CASE WHEN day_num = 6 THEN carts_rank ELSE NULL END) AS carts_rank_day6,
+    MAX(CASE WHEN day_num = 7 THEN carts_rank ELSE NULL END) AS carts_rank_day7,
+    MAX(CASE WHEN day_num = 8 THEN carts_rank ELSE NULL END) AS carts_rank_day8,
+    MAX(CASE WHEN day_num = 1 THEN orders_rank ELSE NULL END) AS orders_rank_day1,
+    MAX(CASE WHEN day_num = 2 THEN orders_rank ELSE NULL END) AS orders_rank_day2,
+    MAX(CASE WHEN day_num = 3 THEN orders_rank ELSE NULL END) AS orders_rank_day3,
+    MAX(CASE WHEN day_num = 4 THEN orders_rank ELSE NULL END) AS orders_rank_day4,
+    MAX(CASE WHEN day_num = 5 THEN orders_rank ELSE NULL END) AS orders_rank_day5,
+    MAX(CASE WHEN day_num = 6 THEN orders_rank ELSE NULL END) AS orders_rank_day6,
+    MAX(CASE WHEN day_num = 7 THEN orders_rank ELSE NULL END) AS orders_rank_day7,
+    MAX(CASE WHEN day_num = 8 THEN orders_rank ELSE NULL END) AS orders_rank_day8
+  FROM daily_rank
+  GROUP BY aid
 ), aid_stats AS (
     SELECT
         a1.aid,
@@ -155,9 +229,34 @@ WITH session_stats1 AS (
         a2.max_sec_clicks_carts,
         a2.avg_sec_carts_orders,
         a2.min_sec_carts_orders,
-        a2.max_sec_carts_orders
+        a2.max_sec_carts_orders,
+        a3.clicks_rank_day1,
+        a3.clicks_rank_day2,
+        a3.clicks_rank_day3,
+        a3.clicks_rank_day4,
+        a3.clicks_rank_day5,
+        a3.clicks_rank_day6,
+        a3.clicks_rank_day7,
+        a3.clicks_rank_day8,
+        a3.carts_rank_day1,
+        a3.carts_rank_day2,
+        a3.carts_rank_day3,
+        a3.carts_rank_day4,
+        a3.carts_rank_day5,
+        a3.carts_rank_day6,
+        a3.carts_rank_day7,
+        a3.carts_rank_day8,
+        a3.orders_rank_day1,
+        a3.orders_rank_day2,
+        a3.orders_rank_day3,
+        a3.orders_rank_day4,
+        a3.orders_rank_day5,
+        a3.orders_rank_day6,
+        a3.orders_rank_day7,
+        a3.orders_rank_day8
     FROM aid_stats1 a1
     INNER JOIN aid_stats2 a2 ON a1.aid = a2.aid
+    INNER JOIN aid_stats3 a3 ON a1.aid = a3.aid
 ), aid_list AS (
     SELECT
           session,
@@ -196,8 +295,8 @@ WITH session_stats1 AS (
           ts - (MIN(ts) OVER (PARTITION BY session)) AS sec_since_session_start,
           (MAX(ts) OVER (PARTITION BY session)) - ts AS sec_to_session_end,
           COUNT(*) OVER (PARTITION BY session) AS session_interaction_length
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
       )
     )
 ), aggregate_by_session_aid AS (
@@ -262,8 +361,8 @@ WITH session_stats1 AS (
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
         NULL AS srgnn_candidate_num,
---     FROM `kaggle-352109.otto.covisit_c100_cv` -- FIXME
-    FROM `kaggle-352109.otto.covisit_c100`
+    FROM `kaggle-352109.otto.covisit_c100_cv` -- FIXME
+--     FROM `kaggle-352109.otto.covisit_c100`
     WHERE aid is not NULL
     GROUP BY session, aid
 ), w2v AS (
@@ -296,8 +395,8 @@ WITH session_stats1 AS (
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
         NULL AS srgnn_candidate_num,
---     FROM `kaggle-352109.otto.w2v_c100_cv` -- FIXME
-    FROM `kaggle-352109.otto.w2v_c100`
+    FROM `kaggle-352109.otto.w2v_c100_cv` -- FIXME
+--     FROM `kaggle-352109.otto.w2v_c100`
     WHERE aid is not NULL
 ), gru4rec AS (
     SELECT
@@ -329,8 +428,8 @@ WITH session_stats1 AS (
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
         NULL AS srgnn_candidate_num,
---     FROM `kaggle-352109.otto.gru4rec_c100_cv` -- FIXME
-    FROM `kaggle-352109.otto.gru4rec_c100`
+    FROM `kaggle-352109.otto.gru4rec_c100_cv` -- FIXME
+--     FROM `kaggle-352109.otto.gru4rec_c100`
     WHERE aid is not NULL
 ), narm AS (
     SELECT
@@ -362,8 +461,8 @@ WITH session_stats1 AS (
         ROW_NUMBER() OVER (PARTITION BY session)  AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
         NULL AS srgnn_candidate_num,
---     FROM `kaggle-352109.otto.narm_aggs_cv`,  -- FIXME
-    FROM `kaggle-352109.otto.narm_aggs`,
+    FROM `kaggle-352109.otto.narm_aggs_cv`,  -- FIXME
+--     FROM `kaggle-352109.otto.narm_aggs`,
     UNNEST(labels.list) AS list
 ), sasrec AS (
     SELECT
@@ -395,8 +494,8 @@ WITH session_stats1 AS (
         NULL AS narm_candidate_num,
         rank AS sasrec_candidate_num,
         NULL AS srgnn_candidate_num,
---     FROM `kaggle-352109.otto.sasrec_cv` -- FIXME
-    FROM `kaggle-352109.otto.sasrec`
+    FROM `kaggle-352109.otto.sasrec_cv` -- FIXME
+--     FROM `kaggle-352109.otto.sasrec`
     WHERE aid is not NULL
 ), srgnn AS (
     SELECT
@@ -428,8 +527,8 @@ WITH session_stats1 AS (
         NULL AS narm_candidate_num,
         NULL AS sasrec_candidate_num,
         rank AS srgnn_candidate_num,
---     FROM `kaggle-352109.otto.srgnn_cv` -- FIXME
-    FROM `kaggle-352109.otto.srgnn`
+    FROM `kaggle-352109.otto.srgnn_cv` -- FIXME
+--     FROM `kaggle-352109.otto.srgnn`
     WHERE aid is not NULL
 ), ranking AS (
     SELECT
@@ -463,8 +562,8 @@ WITH session_stats1 AS (
         NULL AS srgnn_candidate_num,
     FROM (
         SELECT session
---         FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
-        FROM `kaggle-352109.otto.test`
+        FROM `kaggle-352109.otto.otto-validation-test` -- FIXME
+--         FROM `kaggle-352109.otto.test`
         GROUP BY session
     ) t
     CROSS JOIN (
@@ -543,6 +642,8 @@ SELECT
     ss.avg_sec_session_carts_orders,
     ss.min_sec_session_carts_orders,
     ss.max_sec_session_carts_orders,
+    ss.min_day_num,
+    ss.max_day_num,
     COALESCE(sa.session_aid_clicks_cnt, 0) AS session_aid_clicks_cnt,
     COALESCE(sa.session_aid_carts_cnt, 0) AS session_aid_carts_cnt,
     COALESCE(sa.session_aid_orders_cnt, 0) AS session_aid_orders_cnt,
@@ -586,7 +687,31 @@ SELECT
     ais.max_sec_clicks_carts,
     ais.avg_sec_carts_orders,
     ais.min_sec_carts_orders,
-    ais.max_sec_carts_orders
+    ais.max_sec_carts_orders,
+    ais.clicks_rank_day1,
+    ais.clicks_rank_day2,
+    ais.clicks_rank_day3,
+    ais.clicks_rank_day4,
+    ais.clicks_rank_day5,
+    ais.clicks_rank_day6,
+    ais.clicks_rank_day7,
+    ais.clicks_rank_day8,
+    ais.carts_rank_day1,
+    ais.carts_rank_day2,
+    ais.carts_rank_day3,
+    ais.carts_rank_day4,
+    ais.carts_rank_day5,
+    ais.carts_rank_day6,
+    ais.carts_rank_day7,
+    ais.carts_rank_day8,
+    ais.orders_rank_day1,
+    ais.orders_rank_day2,
+    ais.orders_rank_day3,
+    ais.orders_rank_day4,
+    ais.orders_rank_day5,
+    ais.orders_rank_day6,
+    ais.orders_rank_day7,
+    ais.orders_rank_day8
 FROM union_all sa
 LEFT JOIN session_stats ss ON ss.session = sa.session
 LEFT JOIN aid_stats ais ON ais.aid = sa.aid
