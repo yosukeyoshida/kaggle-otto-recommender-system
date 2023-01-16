@@ -71,6 +71,14 @@ def pred_user_to_item(item_history: ItemHistory, dataset: Any, model: Any):
     return recommended_items
 
 
+def read_files(path):
+    dfs = []
+
+    for file in glob.glob(path):
+        df = pd.read_parquet(file)
+        dfs.append(df)
+    return pd.concat(dfs, ignore_index=True)
+
 def main(cv, output_dir, seed):
     if cv:
         train_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
@@ -79,8 +87,8 @@ def main(cv, output_dir, seed):
         train_file_path = "./input/otto-validation/test_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
 
-    _train = pd.read_parquet(train_file_path)
-    _test = pd.read_parquet(test_file_path)
+    _train = read_files(train_file_path)
+    _test = read_files(test_file_path)
     _train = pd.concat([_train, _test], axis=0, ignore_index=True)
     _train["session"] = _train["session"].astype("int32")
     _train["aid"] = _train["aid"].astype("int32")
