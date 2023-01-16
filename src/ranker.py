@@ -14,11 +14,11 @@ from wandb.lightgbm import wandb_callback
 
 class CFG:
     wandb = True
-    num_iterations = 500
+    num_iterations = 2000
     cv_only = False
     n_folds = 5
-    input_train_dir = "20230116"
-    input_test_dir = "20230116"
+    input_train_dir = "20230117"
+    input_test_dir = "20230117"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -34,9 +34,6 @@ class CFG:
         "session_clicks_unique_aid": "int16",
         "session_carts_unique_aid": "int16",
         "session_orders_unique_aid": "int16",
-        "clicks_uu_rank": "int32",
-        "carts_uu_rank": "int32",
-        "orders_uu_rank": "int32",
         "min_day_num": "int8",
         "max_day_num": "int8",
         "clicks_rank_day1": "int32",
@@ -63,6 +60,30 @@ class CFG:
         "orders_rank_day6": "int32",
         "orders_rank_day7": "int32",
         "orders_rank_day8": "int32",
+        "clicks_cnt_day1": "int16",
+        "clicks_cnt_day2": "int16",
+        "clicks_cnt_day3": "int16",
+        "clicks_cnt_day4": "int16",
+        "clicks_cnt_day5": "int16",
+        "clicks_cnt_day6": "int16",
+        "clicks_cnt_day7": "int16",
+        "clicks_cnt_day8": "int16",
+        "carts_cnt_day1": "int16",
+        "carts_cnt_day2": "int16",
+        "carts_cnt_day3": "int16",
+        "carts_cnt_day4": "int16",
+        "carts_cnt_day5": "int16",
+        "carts_cnt_day6": "int16",
+        "carts_cnt_day7": "int16",
+        "carts_cnt_day8": "int16",
+        "orders_cnt_day1": "int16",
+        "orders_cnt_day2": "int16",
+        "orders_cnt_day3": "int16",
+        "orders_cnt_day4": "int16",
+        "orders_cnt_day5": "int16",
+        "orders_cnt_day6": "int16",
+        "orders_cnt_day7": "int16",
+        "orders_cnt_day8": "int16",
     }
     float_cols = [
         "avg_action_num_reverse_chrono",
@@ -97,9 +118,30 @@ class CFG:
         "avg_sec_carts_orders",
         "min_sec_carts_orders",
         "max_sec_carts_orders",
-        "avg_clicks_cnt",
-        "avg_carts_cnt",
-        "avg_orders_cnt",
+        "avg_clicks_cnt_day1",
+        "avg_clicks_cnt_day2",
+        "avg_clicks_cnt_day3",
+        "avg_clicks_cnt_day4",
+        "avg_clicks_cnt_day5",
+        "avg_clicks_cnt_day6",
+        "avg_clicks_cnt_day7",
+        "avg_clicks_cnt_day8",
+        "avg_carts_cnt_day1",
+        "avg_carts_cnt_day2",
+        "avg_carts_cnt_day3",
+        "avg_carts_cnt_day4",
+        "avg_carts_cnt_day5",
+        "avg_carts_cnt_day6",
+        "avg_carts_cnt_day7",
+        "avg_carts_cnt_day8",
+        "avg_orders_cnt_day1",
+        "avg_orders_cnt_day2",
+        "avg_orders_cnt_day3",
+        "avg_orders_cnt_day4",
+        "avg_orders_cnt_day5",
+        "avg_orders_cnt_day6",
+        "avg_orders_cnt_day7",
+        "avg_orders_cnt_day8",
         "clicks_carts_ratio",
         "carts_orders_ratio",
         "clicks_orders_ratio",
