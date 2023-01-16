@@ -17,8 +17,8 @@ class CFG:
     num_iterations = 500
     cv_only = False
     n_folds = 5
-    input_train_dir = "20230115_2"
-    input_test_dir = "20230115_2"
+    input_train_dir = "20230116"
+    input_test_dir = "20230116"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -37,6 +37,32 @@ class CFG:
         "clicks_uu_rank": "int32",
         "carts_uu_rank": "int32",
         "orders_uu_rank": "int32",
+        "min_day_num": "int8",
+        "max_day_num": "int8",
+        "clicks_rank_day1": "int32",
+        "clicks_rank_day2": "int32",
+        "clicks_rank_day3": "int32",
+        "clicks_rank_day4": "int32",
+        "clicks_rank_day5": "int32",
+        "clicks_rank_day6": "int32",
+        "clicks_rank_day7": "int32",
+        "clicks_rank_day8": "int32",
+        "carts_rank_day1": "int32",
+        "carts_rank_day2": "int32",
+        "carts_rank_day3": "int32",
+        "carts_rank_day4": "int32",
+        "carts_rank_day5": "int32",
+        "carts_rank_day6": "int32",
+        "carts_rank_day7": "int32",
+        "carts_rank_day8": "int32",
+        "orders_rank_day1": "int32",
+        "orders_rank_day2": "int32",
+        "orders_rank_day3": "int32",
+        "orders_rank_day4": "int32",
+        "orders_rank_day5": "int32",
+        "orders_rank_day6": "int32",
+        "orders_rank_day7": "int32",
+        "orders_rank_day8": "int32",
     }
     float_cols = [
         "avg_action_num_reverse_chrono",
