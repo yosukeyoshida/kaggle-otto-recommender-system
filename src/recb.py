@@ -1,5 +1,6 @@
 import argparse
 import math
+import glob
 import gc
 import os
 import pickle
@@ -78,8 +79,9 @@ def main(cv, output_dir, seed):
         train_file_path = "./input/otto-validation/test_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
 
-    _train = pl.read_parquet(train_file_path)
-    _train = _train.to_pandas()
+    _train = pd.read_parquet(train_file_path)
+    _test = pd.read_parquet(test_file_path)
+    _train = pd.concat([_train, _test], axis=0, ignore_index=True)
     _train["session"] = _train["session"].astype("int32")
     _train["aid"] = _train["aid"].astype("int32")
     _train["ts"] = (_train["ts"] / 1000).astype("int32")
@@ -92,7 +94,7 @@ def main(cv, output_dir, seed):
     dataset_dir = os.path.join(output_dir, "recbox_data")
     os.makedirs(dataset_dir, exist_ok=True)
     train["session:token", "aid:token", "ts:float"].write_csv(os.path.join(dataset_dir, "recbox_data.inter"), sep="\t")
-    del train, _train
+    del train, _train, _test
     gc.collect()
 
     parameter_dict = {
