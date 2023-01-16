@@ -33,6 +33,7 @@ def main(cv, output_dir, **kwargs):
         train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
         test_file_path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     train = read_files(train_file_path)
+    train = train[train["type"] != "clicks"]
     sentences = train.groupby("session")["aid"].apply(list).to_list()
     test = read_files(test_file_path)
 
