@@ -340,7 +340,7 @@ def run_inference(output_dir, single_fold):
     path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
     files = glob.glob(path)
     preds = []
-    chunk_size = math.ceil(len(files) / 10)
+    chunk_size = math.ceil(len(files) / 20)
     files_list = split_list(files, chunk_size)
     for files in files_list:
         dfs = []
