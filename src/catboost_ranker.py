@@ -227,7 +227,7 @@ def run_train(type, output_dir, single_fold):
 
         params = {
             'iterations': CFG.num_iterations,
-            'custom_metric': ['NDCG', "AUC:type=Ranking"],
+            'custom_metric': ['NDCG:top=20'],
             'random_seed': 42,
             "has_time": True,
             'early_stopping_rounds': 100,

@@ -14,7 +14,7 @@ from wandb.lightgbm import wandb_callback
 
 class CFG:
     wandb = True
-    num_iterations = 500
+    num_iterations = 2000
     cv_only = False
     save_score = True
     n_folds = 5
@@ -22,6 +22,7 @@ class CFG:
     chunk_session_split_size = 20
     input_train_dir = "20230116"
     input_test_dir = "20230116"
+    objective = "lambdarank"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -233,20 +234,27 @@ def run_train(type, output_dir, single_fold):
         X_train = X_train[feature_cols]
         # X_valid = X_valid[feature_cols]
 
-        params = {
-            "objective": "lambdarank",
-            "metric": "ndcg",
-            "boosting_type": "gbdt",
-            # "objective": "binary",
-            # "metric": "auc",
-            # "boosting_type": "dart",
-            # 'lambdarank_truncation_level': 10,
-            # 'ndcg_eval_at': [10, 5, 20],
-            "num_iterations": CFG.num_iterations,
-            "random_state": 42,
-            # "bagging_fraction": 0.5,
-            # "bagging_freq": 10,
-        }
+        if CFG.objective == "lambdarank":
+            params = {
+                "objective": "lambdarank",
+                "metric": "ndcg",
+                "boosting_type": "gbdt",
+                'ndcg_eval_at': [20],
+                "num_iterations": CFG.num_iterations,
+                "random_state": 42,
+                # 'lambdarank_truncation_level': 10,
+                # "bagging_fraction": 0.5,
+                # "bagging_freq": 10,
+            }
+        elif CFG.objective == "binary":
+            params = {
+                "objective": "binary",
+                "metric": "auc",
+                "boosting_type": "gbdt",
+                "num_iterations": CFG.num_iterations,
+                "random_state": 42,
+            }
+
         _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
         _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
@@ -375,6 +383,7 @@ def main(single_fold):
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="ranker", group="feature/save_score")
+        wandb.log({"objective": CFG.objective})
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
@@ -396,5 +405,7 @@ def main(single_fold):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_fold", action="store_true")
+    parser.add_argument("--objective", type=str, default="lambdarank")
     args = parser.parse_args()
+    CFG.objective = args.objective
     main(args.single_fold)
