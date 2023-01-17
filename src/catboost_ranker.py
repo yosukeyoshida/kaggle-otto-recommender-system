@@ -1,25 +1,23 @@
 import argparse
+from catboost import CatBoostRanker, Pool
 import math
 import gc
 import glob
 import os
 import pickle
-
-import lightgbm as lgb
 import pandas as pd
 import wandb
 from sklearn.model_selection import GroupKFold
-from wandb.lightgbm import wandb_callback
 
 
 class CFG:
     wandb = True
-    num_iterations = 500
+    num_iterations = 5000
     cv_only = False
     save_score = False
-    n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
+    n_folds = 5
     input_train_dir = "20230116"
     input_test_dir = "20230116"
     dtypes = {
@@ -222,44 +220,38 @@ def run_train(type, output_dir, single_fold):
         X_valid = X_valid.sort_values(["session", "aid"])
         y_valid = y_valid.loc[X_valid.index]
 
-        session_length = X_train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-        session_lengths_train = session_length["session_length"].values
-
-        session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-        session_lengths_valid = session_length["session_length"].values
-        del session_length
-        gc.collect()
+        group_id_train = X_train["session"]
+        group_id_valid = X_valid["session"]
 
         X_train = X_train[feature_cols]
-        # X_valid = X_valid[feature_cols]
 
         params = {
-            "objective": "lambdarank",
-            "metric": "ndcg",
-            "boosting_type": "gbdt",
-            # "objective": "binary",
-            # "metric": "auc",
-            # "boosting_type": "dart",
-            # 'lambdarank_truncation_level': 10,
-            # 'ndcg_eval_at': [10, 5, 20],
-            "num_iterations": CFG.num_iterations,
-            "random_state": 42,
-            # "bagging_fraction": 0.5,
-            # "bagging_freq": 10,
+            'iterations': CFG.num_iterations,
+            'custom_metric': ['NDCG', "AUC:type=Ranking"],
+            'random_seed': 42,
+            "has_time": True,
+            'early_stopping_rounds': 100,
+            "use_best_model": True,
+            "task_type": "GPU",
         }
-        _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
-        _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
-        del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
+        _train = Pool(
+            data=X_train,
+            label=y_train,
+            group_id=group_id_train
+        )
+        _valid = Pool(
+            data=X_valid[feature_cols],
+            label=y_valid,
+            group_id=group_id_valid
+        )
+        del X_train, y_train, y_valid
         gc.collect()
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
-        # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
+        ranker = CatBoostRanker(**params)
+        ranker.fit(_train, eval_set=_valid, use_best_model=True)
         print("train end")
-        # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
-        # ranker = lgb.Booster(model_file=f"{output_dir}/lgb_fold{fold}")
-        # log_summary(ranker, save_model_checkpoint=True)
         if CFG.wandb:
-            wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
+            wandb.log({f"[{type}] best_iteration": ranker.get_best_iteration()})
         dump_pickle(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), ranker)
         X_valid = X_valid.sort_values(["session", "aid"])
         scores = ranker.predict(X_valid[feature_cols])
