@@ -232,7 +232,7 @@ def run_train(type, output_dir, single_fold):
             "has_time": True,
             'early_stopping_rounds': 100,
             "use_best_model": True,
-            "task_type": "GPU",
+            # "task_type": "GPU",
         }
         _train = Pool(
             data=X_train,
