@@ -14,7 +14,7 @@ class CFG:
     wandb = True
     num_iterations = 5000
     cv_only = False
-    save_score = False
+    save_score = True
     chunk_split_size = 20
     chunk_session_split_size = 20
     n_folds = 5
