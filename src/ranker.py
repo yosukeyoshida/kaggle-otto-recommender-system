@@ -358,7 +358,7 @@ def run_inference(output_dir, single_fold):
         preds_save_dir = os.path.join(output_dir, "preds")
         os.makedirs(preds_save_dir, exist_ok=True)
         for i, sessions in enumerate(sessions_list):
-            _preds = preds[preds["session"].isin("sessions")]
+            _preds = preds[preds["session"].isin(sessions)]
             dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
             del _preds
             gc.collect()
