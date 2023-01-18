@@ -7,8 +7,8 @@ import gc
 def main(output_dir):
     dfs = []
     for i in range(20):
-        df1 = pickle.load(open(f"absurd-violet-724/preds/preds_{i}.pkl", "rb"))
-        df2 = pickle.load(open(f"splendid-mountain-725/preds/preds_{i}.pkl", "rb"))
+        df1 = pickle.load(open(f"output/lgbm/absurd-violet-724/preds/preds_{i}.pkl", "rb"))
+        df2 = pickle.load(open(f"output/lgbm/splendid-mountain-725/preds/preds_{i}.pkl", "rb"))
         for type in ["clicks", "carts", "orders"]:
             _df1 = df1[df1["type"] == type]
             _df2 = df2[df2["type"] == type]
