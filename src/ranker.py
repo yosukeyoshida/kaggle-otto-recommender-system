@@ -16,7 +16,7 @@ class CFG:
     wandb = True
     num_iterations = 2000
     cv_only = False
-    save_score = True
+    save_score = False
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
@@ -463,7 +463,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/save_score")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/day_num_35")
         wandb.log({"objective": CFG.objective})
         run_name = wandb.run.name
     if run_name is not None:
