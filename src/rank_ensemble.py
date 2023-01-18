@@ -19,6 +19,8 @@ def main(output_dir):
             gc.collect()
             joined["rank"] = (joined["rank_x"] + joined["rank_y"]) / 2
             _preds = joined.sort_values(["session", "rank"]).groupby("session").head(20)
+            del joined
+            gc.collect()
             _preds = _preds.groupby("session")["aid"].apply(list)
             _preds = _preds.to_frame().reset_index()
             _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
@@ -26,6 +28,8 @@ def main(output_dir):
             del _preds
             gc.collect()
     sub = pd.concat(dfs)
+    del dfs, df1, df2
+    gc.collect()
     sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
