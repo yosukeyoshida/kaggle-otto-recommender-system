@@ -16,12 +16,12 @@ class CFG:
     wandb = True
     num_iterations = 2000
     cv_only = False
-    save_score = True
+    save_score = False
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
-    input_train_dir = "20230116"
-    input_test_dir = "20230116"
+    input_train_dir = "20230119_3"
+    input_test_dir = "20230119_3"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
@@ -50,7 +50,6 @@ class CFG:
         "clicks_rank_day5": "int32",
         "clicks_rank_day6": "int32",
         "clicks_rank_day7": "int32",
-        "clicks_rank_day8": "int32",
         "carts_rank_day1": "int32",
         "carts_rank_day2": "int32",
         "carts_rank_day3": "int32",
@@ -58,7 +57,6 @@ class CFG:
         "carts_rank_day5": "int32",
         "carts_rank_day6": "int32",
         "carts_rank_day7": "int32",
-        "carts_rank_day8": "int32",
         "orders_rank_day1": "int32",
         "orders_rank_day2": "int32",
         "orders_rank_day3": "int32",
@@ -66,7 +64,48 @@ class CFG:
         "orders_rank_day5": "int32",
         "orders_rank_day6": "int32",
         "orders_rank_day7": "int32",
-        "orders_rank_day8": "int32",
+        "session_clicks_cnt_day1": "int32",
+        "session_clicks_cnt_day2": "int32",
+        "session_clicks_cnt_day3": "int32",
+        "session_clicks_cnt_day4": "int32",
+        "session_clicks_cnt_day5": "int32",
+        "session_clicks_cnt_day6": "int32",
+        "session_clicks_cnt_day7": "int32",
+        "session_carts_cnt_day1": "int32",
+        "session_carts_cnt_day2": "int32",
+        "session_carts_cnt_day3": "int32",
+        "session_carts_cnt_day4": "int32",
+        "session_carts_cnt_day5": "int32",
+        "session_carts_cnt_day6": "int32",
+        "session_carts_cnt_day7": "int32",
+        "session_orders_cnt_day1": "int32",
+        "session_orders_cnt_day2": "int32",
+        "session_orders_cnt_day3": "int32",
+        "session_orders_cnt_day4": "int32",
+        "session_orders_cnt_day5": "int32",
+        "session_orders_cnt_day6": "int32",
+        "session_orders_cnt_day7": "int32",
+        "session_aid_clicks_cnt_day1": "int32",
+        "session_aid_clicks_cnt_day2": "int32",
+        "session_aid_clicks_cnt_day3": "int32",
+        "session_aid_clicks_cnt_day4": "int32",
+        "session_aid_clicks_cnt_day5": "int32",
+        "session_aid_clicks_cnt_day6": "int32",
+        "session_aid_clicks_cnt_day7": "int32",
+        "session_aid_carts_cnt_day1": "int32",
+        "session_aid_carts_cnt_day2": "int32",
+        "session_aid_carts_cnt_day3": "int32",
+        "session_aid_carts_cnt_day4": "int32",
+        "session_aid_carts_cnt_day5": "int32",
+        "session_aid_carts_cnt_day6": "int32",
+        "session_aid_carts_cnt_day7": "int32",
+        "session_aid_orders_cnt_day1": "int32",
+        "session_aid_orders_cnt_day2": "int32",
+        "session_aid_orders_cnt_day3": "int32",
+        "session_aid_orders_cnt_day4": "int32",
+        "session_aid_orders_cnt_day5": "int32",
+        "session_aid_orders_cnt_day6": "int32",
+        "session_aid_orders_cnt_day7": "int32",
     }
     float_cols = [
         "avg_action_num_reverse_chrono",
@@ -382,7 +421,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/save_score")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/session_daily_stats")
         wandb.log({"objective": CFG.objective})
         run_name = wandb.run.name
     if run_name is not None:
