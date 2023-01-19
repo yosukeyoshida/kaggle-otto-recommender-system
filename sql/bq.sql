@@ -1,21 +1,23 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20230119/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20230119/test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20230119_2/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20230119_2/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
 AS
 WITH day_num AS (
-  SELECT
-      dt,
-      ROW_NUMBER() OVER (ORDER BY dt) AS num
-  FROM (
-      SELECT
-          CAST(FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_ADD(TIMESTAMP_SECONDS(CAST(ts/1000 AS int)), INTERVAL 2 HOUR)) as DATE) AS dt
-      FROM `kaggle-352109.otto.train_test`
-      GROUP BY dt
-  )
+    SELECT
+        dt,
+        ROW_NUMBER() OVER (ORDER BY dt) AS num
+    FROM (
+        SELECT
+            CAST(FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_ADD(TIMESTAMP_SECONDS(CAST(ts/1000 AS int)), INTERVAL 2 HOUR)) as DATE) AS dt
+        FROM `kaggle-352109.otto.otto-validation-aid`  -- FIXME
+--         FROM `kaggle-352109.otto.aid`
+        GROUP BY dt
+    )
+    ORDER BY dt
 ), session_stats1 AS (
     SELECT
         session,
@@ -121,7 +123,8 @@ WITH day_num AS (
             COUNT(DISTINCT(CASE WHEN type = 'clicks' THEN session ELSE NULL END)) AS clicks_uu,
             COUNT(DISTINCT(CASE WHEN type = 'carts' THEN session ELSE NULL END)) AS carts_uu,
             COUNT(DISTINCT(CASE WHEN type = 'orders' THEN session ELSE NULL END)) AS orders_uu
-        FROM `kaggle-352109.otto.train_test`
+        FROM `kaggle-352109.otto.otto-validation-aid`  -- FIXME
+--         FROM `kaggle-352109.otto.aid`
         GROUP BY aid
     ) t
 ), aid_stats2 AS (
@@ -146,7 +149,8 @@ WITH day_num AS (
                 MIN(CASE WHEN type = 'clicks' THEN ts ELSE NULL END) AS first_clicks_ts,
                 MIN(CASE WHEN type = 'carts' THEN ts ELSE NULL END) AS first_carts_ts,
                 MIN(CASE WHEN type = 'orders' THEN ts ELSE NULL END) AS first_orders_ts
-            FROM `kaggle-352109.otto.train_test`
+            FROM `kaggle-352109.otto.otto-validation-aid`  -- FIXME
+--             FROM `kaggle-352109.otto.aid`
             GROUP BY session, aid
         ) t
     ) t
@@ -172,7 +176,8 @@ WITH day_num AS (
           COUNT(DISTINCT(CASE WHEN type = 'clicks' THEN session ELSE NULL END)) AS clicks_uu,
           COUNT(DISTINCT(CASE WHEN type = 'carts' THEN session ELSE NULL END)) AS carts_uu,
           COUNT(DISTINCT(CASE WHEN type = 'orders' THEN session ELSE NULL END)) AS orders_uu
-      FROM `kaggle-352109.otto.train_test`
+      FROM `kaggle-352109.otto.otto-validation-aid`  -- FIXME
+--       FROM `kaggle-352109.otto.aid`
       GROUP BY dt, aid
   ) t
   INNER JOIN day_num d ON d.dt = t.dt
@@ -193,27 +198,6 @@ WITH day_num AS (
     MAX(CASE WHEN day_num = 12 THEN clicks_rank ELSE NULL END) AS clicks_rank_day12,
     MAX(CASE WHEN day_num = 13 THEN clicks_rank ELSE NULL END) AS clicks_rank_day13,
     MAX(CASE WHEN day_num = 14 THEN clicks_rank ELSE NULL END) AS clicks_rank_day14,
-    MAX(CASE WHEN day_num = 15 THEN clicks_rank ELSE NULL END) AS clicks_rank_day15,
-    MAX(CASE WHEN day_num = 16 THEN clicks_rank ELSE NULL END) AS clicks_rank_day16,
-    MAX(CASE WHEN day_num = 17 THEN clicks_rank ELSE NULL END) AS clicks_rank_day17,
-    MAX(CASE WHEN day_num = 18 THEN clicks_rank ELSE NULL END) AS clicks_rank_day18,
-    MAX(CASE WHEN day_num = 19 THEN clicks_rank ELSE NULL END) AS clicks_rank_day19,
-    MAX(CASE WHEN day_num = 20 THEN clicks_rank ELSE NULL END) AS clicks_rank_day20,
-    MAX(CASE WHEN day_num = 21 THEN clicks_rank ELSE NULL END) AS clicks_rank_day21,
-    MAX(CASE WHEN day_num = 22 THEN clicks_rank ELSE NULL END) AS clicks_rank_day22,
-    MAX(CASE WHEN day_num = 23 THEN clicks_rank ELSE NULL END) AS clicks_rank_day23,
-    MAX(CASE WHEN day_num = 24 THEN clicks_rank ELSE NULL END) AS clicks_rank_day24,
-    MAX(CASE WHEN day_num = 25 THEN clicks_rank ELSE NULL END) AS clicks_rank_day25,
-    MAX(CASE WHEN day_num = 26 THEN clicks_rank ELSE NULL END) AS clicks_rank_day26,
-    MAX(CASE WHEN day_num = 27 THEN clicks_rank ELSE NULL END) AS clicks_rank_day27,
-    MAX(CASE WHEN day_num = 28 THEN clicks_rank ELSE NULL END) AS clicks_rank_day28,
-    MAX(CASE WHEN day_num = 29 THEN clicks_rank ELSE NULL END) AS clicks_rank_day29,
-    MAX(CASE WHEN day_num = 30 THEN clicks_rank ELSE NULL END) AS clicks_rank_day30,
-    MAX(CASE WHEN day_num = 31 THEN clicks_rank ELSE NULL END) AS clicks_rank_day31,
-    MAX(CASE WHEN day_num = 32 THEN clicks_rank ELSE NULL END) AS clicks_rank_day32,
-    MAX(CASE WHEN day_num = 33 THEN clicks_rank ELSE NULL END) AS clicks_rank_day33,
-    MAX(CASE WHEN day_num = 34 THEN clicks_rank ELSE NULL END) AS clicks_rank_day34,
-    MAX(CASE WHEN day_num = 35 THEN clicks_rank ELSE NULL END) AS clicks_rank_day35,
     MAX(CASE WHEN day_num = 1 THEN carts_rank ELSE NULL END) AS carts_rank_day1,
     MAX(CASE WHEN day_num = 2 THEN carts_rank ELSE NULL END) AS carts_rank_day2,
     MAX(CASE WHEN day_num = 3 THEN carts_rank ELSE NULL END) AS carts_rank_day3,
@@ -228,27 +212,6 @@ WITH day_num AS (
     MAX(CASE WHEN day_num = 12 THEN carts_rank ELSE NULL END) AS carts_rank_day12,
     MAX(CASE WHEN day_num = 13 THEN carts_rank ELSE NULL END) AS carts_rank_day13,
     MAX(CASE WHEN day_num = 14 THEN carts_rank ELSE NULL END) AS carts_rank_day14,
-    MAX(CASE WHEN day_num = 15 THEN carts_rank ELSE NULL END) AS carts_rank_day15,
-    MAX(CASE WHEN day_num = 16 THEN carts_rank ELSE NULL END) AS carts_rank_day16,
-    MAX(CASE WHEN day_num = 17 THEN carts_rank ELSE NULL END) AS carts_rank_day17,
-    MAX(CASE WHEN day_num = 18 THEN carts_rank ELSE NULL END) AS carts_rank_day18,
-    MAX(CASE WHEN day_num = 19 THEN carts_rank ELSE NULL END) AS carts_rank_day19,
-    MAX(CASE WHEN day_num = 20 THEN carts_rank ELSE NULL END) AS carts_rank_day20,
-    MAX(CASE WHEN day_num = 21 THEN carts_rank ELSE NULL END) AS carts_rank_day21,
-    MAX(CASE WHEN day_num = 22 THEN carts_rank ELSE NULL END) AS carts_rank_day22,
-    MAX(CASE WHEN day_num = 23 THEN carts_rank ELSE NULL END) AS carts_rank_day23,
-    MAX(CASE WHEN day_num = 24 THEN carts_rank ELSE NULL END) AS carts_rank_day24,
-    MAX(CASE WHEN day_num = 25 THEN carts_rank ELSE NULL END) AS carts_rank_day25,
-    MAX(CASE WHEN day_num = 26 THEN carts_rank ELSE NULL END) AS carts_rank_day26,
-    MAX(CASE WHEN day_num = 27 THEN carts_rank ELSE NULL END) AS carts_rank_day27,
-    MAX(CASE WHEN day_num = 28 THEN carts_rank ELSE NULL END) AS carts_rank_day28,
-    MAX(CASE WHEN day_num = 29 THEN carts_rank ELSE NULL END) AS carts_rank_day29,
-    MAX(CASE WHEN day_num = 30 THEN carts_rank ELSE NULL END) AS carts_rank_day30,
-    MAX(CASE WHEN day_num = 31 THEN carts_rank ELSE NULL END) AS carts_rank_day31,
-    MAX(CASE WHEN day_num = 32 THEN carts_rank ELSE NULL END) AS carts_rank_day32,
-    MAX(CASE WHEN day_num = 33 THEN carts_rank ELSE NULL END) AS carts_rank_day33,
-    MAX(CASE WHEN day_num = 34 THEN carts_rank ELSE NULL END) AS carts_rank_day34,
-    MAX(CASE WHEN day_num = 35 THEN carts_rank ELSE NULL END) AS carts_rank_day35,
     MAX(CASE WHEN day_num = 1 THEN orders_rank ELSE NULL END) AS orders_rank_day1,
     MAX(CASE WHEN day_num = 2 THEN orders_rank ELSE NULL END) AS orders_rank_day2,
     MAX(CASE WHEN day_num = 3 THEN orders_rank ELSE NULL END) AS orders_rank_day3,
@@ -263,27 +226,6 @@ WITH day_num AS (
     MAX(CASE WHEN day_num = 12 THEN orders_rank ELSE NULL END) AS orders_rank_day12,
     MAX(CASE WHEN day_num = 13 THEN orders_rank ELSE NULL END) AS orders_rank_day13,
     MAX(CASE WHEN day_num = 14 THEN orders_rank ELSE NULL END) AS orders_rank_day14,
-    MAX(CASE WHEN day_num = 15 THEN orders_rank ELSE NULL END) AS orders_rank_day15,
-    MAX(CASE WHEN day_num = 16 THEN orders_rank ELSE NULL END) AS orders_rank_day16,
-    MAX(CASE WHEN day_num = 17 THEN orders_rank ELSE NULL END) AS orders_rank_day17,
-    MAX(CASE WHEN day_num = 18 THEN orders_rank ELSE NULL END) AS orders_rank_day18,
-    MAX(CASE WHEN day_num = 19 THEN orders_rank ELSE NULL END) AS orders_rank_day19,
-    MAX(CASE WHEN day_num = 20 THEN orders_rank ELSE NULL END) AS orders_rank_day20,
-    MAX(CASE WHEN day_num = 21 THEN orders_rank ELSE NULL END) AS orders_rank_day21,
-    MAX(CASE WHEN day_num = 22 THEN orders_rank ELSE NULL END) AS orders_rank_day22,
-    MAX(CASE WHEN day_num = 23 THEN orders_rank ELSE NULL END) AS orders_rank_day23,
-    MAX(CASE WHEN day_num = 24 THEN orders_rank ELSE NULL END) AS orders_rank_day24,
-    MAX(CASE WHEN day_num = 25 THEN orders_rank ELSE NULL END) AS orders_rank_day25,
-    MAX(CASE WHEN day_num = 26 THEN orders_rank ELSE NULL END) AS orders_rank_day26,
-    MAX(CASE WHEN day_num = 27 THEN orders_rank ELSE NULL END) AS orders_rank_day27,
-    MAX(CASE WHEN day_num = 28 THEN orders_rank ELSE NULL END) AS orders_rank_day28,
-    MAX(CASE WHEN day_num = 29 THEN orders_rank ELSE NULL END) AS orders_rank_day29,
-    MAX(CASE WHEN day_num = 30 THEN orders_rank ELSE NULL END) AS orders_rank_day30,
-    MAX(CASE WHEN day_num = 31 THEN orders_rank ELSE NULL END) AS orders_rank_day31,
-    MAX(CASE WHEN day_num = 32 THEN orders_rank ELSE NULL END) AS orders_rank_day32,
-    MAX(CASE WHEN day_num = 33 THEN orders_rank ELSE NULL END) AS orders_rank_day33,
-    MAX(CASE WHEN day_num = 34 THEN orders_rank ELSE NULL END) AS orders_rank_day34,
-    MAX(CASE WHEN day_num = 35 THEN orders_rank ELSE NULL END) AS orders_rank_day35
   FROM daily_rank
   GROUP BY aid
 ), aid_stats AS (
@@ -321,27 +263,6 @@ WITH day_num AS (
         a3.clicks_rank_day12,
         a3.clicks_rank_day13,
         a3.clicks_rank_day14,
-        a3.clicks_rank_day15,
-        a3.clicks_rank_day16,
-        a3.clicks_rank_day17,
-        a3.clicks_rank_day18,
-        a3.clicks_rank_day19,
-        a3.clicks_rank_day20,
-        a3.clicks_rank_day21,
-        a3.clicks_rank_day22,
-        a3.clicks_rank_day23,
-        a3.clicks_rank_day24,
-        a3.clicks_rank_day25,
-        a3.clicks_rank_day26,
-        a3.clicks_rank_day27,
-        a3.clicks_rank_day28,
-        a3.clicks_rank_day29,
-        a3.clicks_rank_day30,
-        a3.clicks_rank_day31,
-        a3.clicks_rank_day32,
-        a3.clicks_rank_day33,
-        a3.clicks_rank_day34,
-        a3.clicks_rank_day35,
         a3.carts_rank_day1,
         a3.carts_rank_day2,
         a3.carts_rank_day3,
@@ -356,27 +277,6 @@ WITH day_num AS (
         a3.carts_rank_day12,
         a3.carts_rank_day13,
         a3.carts_rank_day14,
-        a3.carts_rank_day15,
-        a3.carts_rank_day16,
-        a3.carts_rank_day17,
-        a3.carts_rank_day18,
-        a3.carts_rank_day19,
-        a3.carts_rank_day20,
-        a3.carts_rank_day21,
-        a3.carts_rank_day22,
-        a3.carts_rank_day23,
-        a3.carts_rank_day24,
-        a3.carts_rank_day25,
-        a3.carts_rank_day26,
-        a3.carts_rank_day27,
-        a3.carts_rank_day28,
-        a3.carts_rank_day29,
-        a3.carts_rank_day30,
-        a3.carts_rank_day31,
-        a3.carts_rank_day32,
-        a3.carts_rank_day33,
-        a3.carts_rank_day34,
-        a3.carts_rank_day35,
         a3.orders_rank_day1,
         a3.orders_rank_day2,
         a3.orders_rank_day3,
@@ -391,27 +291,6 @@ WITH day_num AS (
         a3.orders_rank_day12,
         a3.orders_rank_day13,
         a3.orders_rank_day14,
-        a3.orders_rank_day15,
-        a3.orders_rank_day16,
-        a3.orders_rank_day17,
-        a3.orders_rank_day18,
-        a3.orders_rank_day19,
-        a3.orders_rank_day20,
-        a3.orders_rank_day21,
-        a3.orders_rank_day22,
-        a3.orders_rank_day23,
-        a3.orders_rank_day24,
-        a3.orders_rank_day25,
-        a3.orders_rank_day26,
-        a3.orders_rank_day27,
-        a3.orders_rank_day28,
-        a3.orders_rank_day29,
-        a3.orders_rank_day30,
-        a3.orders_rank_day31,
-        a3.orders_rank_day32,
-        a3.orders_rank_day33,
-        a3.orders_rank_day34,
-        a3.orders_rank_day35
     FROM aid_stats1 a1
     INNER JOIN aid_stats2 a2 ON a1.aid = a2.aid
     INNER JOIN aid_stats3 a3 ON a1.aid = a3.aid
@@ -860,27 +739,6 @@ SELECT
     COALESCE(ais.clicks_rank_day12, 1000000) AS clicks_rank_day12,
     COALESCE(ais.clicks_rank_day13, 1000000) AS clicks_rank_day13,
     COALESCE(ais.clicks_rank_day14, 1000000) AS clicks_rank_day14,
-    COALESCE(ais.clicks_rank_day15, 1000000) AS clicks_rank_day15,
-    COALESCE(ais.clicks_rank_day16, 1000000) AS clicks_rank_day16,
-    COALESCE(ais.clicks_rank_day17, 1000000) AS clicks_rank_day17,
-    COALESCE(ais.clicks_rank_day18, 1000000) AS clicks_rank_day18,
-    COALESCE(ais.clicks_rank_day19, 1000000) AS clicks_rank_day19,
-    COALESCE(ais.clicks_rank_day20, 1000000) AS clicks_rank_day20,
-    COALESCE(ais.clicks_rank_day21, 1000000) AS clicks_rank_day21,
-    COALESCE(ais.clicks_rank_day22, 1000000) AS clicks_rank_day22,
-    COALESCE(ais.clicks_rank_day23, 1000000) AS clicks_rank_day23,
-    COALESCE(ais.clicks_rank_day24, 1000000) AS clicks_rank_day24,
-    COALESCE(ais.clicks_rank_day25, 1000000) AS clicks_rank_day25,
-    COALESCE(ais.clicks_rank_day26, 1000000) AS clicks_rank_day26,
-    COALESCE(ais.clicks_rank_day27, 1000000) AS clicks_rank_day27,
-    COALESCE(ais.clicks_rank_day28, 1000000) AS clicks_rank_day28,
-    COALESCE(ais.clicks_rank_day29, 1000000) AS clicks_rank_day29,
-    COALESCE(ais.clicks_rank_day30, 1000000) AS clicks_rank_day30,
-    COALESCE(ais.clicks_rank_day31, 1000000) AS clicks_rank_day31,
-    COALESCE(ais.clicks_rank_day32, 1000000) AS clicks_rank_day32,
-    COALESCE(ais.clicks_rank_day33, 1000000) AS clicks_rank_day33,
-    COALESCE(ais.clicks_rank_day34, 1000000) AS clicks_rank_day34,
-    COALESCE(ais.clicks_rank_day35, 1000000) AS clicks_rank_day35,
     COALESCE(ais.carts_rank_day1, 1000000) AS carts_rank_day1,
     COALESCE(ais.carts_rank_day2, 1000000) AS carts_rank_day2,
     COALESCE(ais.carts_rank_day3, 1000000) AS carts_rank_day3,
@@ -895,27 +753,6 @@ SELECT
     COALESCE(ais.carts_rank_day12, 1000000) AS carts_rank_day12,
     COALESCE(ais.carts_rank_day13, 1000000) AS carts_rank_day13,
     COALESCE(ais.carts_rank_day14, 1000000) AS carts_rank_day14,
-    COALESCE(ais.carts_rank_day15, 1000000) AS carts_rank_day15,
-    COALESCE(ais.carts_rank_day16, 1000000) AS carts_rank_day16,
-    COALESCE(ais.carts_rank_day17, 1000000) AS carts_rank_day17,
-    COALESCE(ais.carts_rank_day18, 1000000) AS carts_rank_day18,
-    COALESCE(ais.carts_rank_day19, 1000000) AS carts_rank_day19,
-    COALESCE(ais.carts_rank_day20, 1000000) AS carts_rank_day20,
-    COALESCE(ais.carts_rank_day21, 1000000) AS carts_rank_day21,
-    COALESCE(ais.carts_rank_day22, 1000000) AS carts_rank_day22,
-    COALESCE(ais.carts_rank_day23, 1000000) AS carts_rank_day23,
-    COALESCE(ais.carts_rank_day24, 1000000) AS carts_rank_day24,
-    COALESCE(ais.carts_rank_day25, 1000000) AS carts_rank_day25,
-    COALESCE(ais.carts_rank_day26, 1000000) AS carts_rank_day26,
-    COALESCE(ais.carts_rank_day27, 1000000) AS carts_rank_day27,
-    COALESCE(ais.carts_rank_day28, 1000000) AS carts_rank_day28,
-    COALESCE(ais.carts_rank_day29, 1000000) AS carts_rank_day29,
-    COALESCE(ais.carts_rank_day30, 1000000) AS carts_rank_day30,
-    COALESCE(ais.carts_rank_day31, 1000000) AS carts_rank_day31,
-    COALESCE(ais.carts_rank_day32, 1000000) AS carts_rank_day32,
-    COALESCE(ais.carts_rank_day33, 1000000) AS carts_rank_day33,
-    COALESCE(ais.carts_rank_day34, 1000000) AS carts_rank_day34,
-    COALESCE(ais.carts_rank_day35, 1000000) AS carts_rank_day35,
     COALESCE(ais.orders_rank_day1, 1000000) AS orders_rank_day1,
     COALESCE(ais.orders_rank_day2, 1000000) AS orders_rank_day2,
     COALESCE(ais.orders_rank_day3, 1000000) AS orders_rank_day3,
@@ -930,27 +767,6 @@ SELECT
     COALESCE(ais.orders_rank_day12, 1000000) AS orders_rank_day12,
     COALESCE(ais.orders_rank_day13, 1000000) AS orders_rank_day13,
     COALESCE(ais.orders_rank_day14, 1000000) AS orders_rank_day14,
-    COALESCE(ais.orders_rank_day15, 1000000) AS orders_rank_day15,
-    COALESCE(ais.orders_rank_day16, 1000000) AS orders_rank_day16,
-    COALESCE(ais.orders_rank_day17, 1000000) AS orders_rank_day17,
-    COALESCE(ais.orders_rank_day18, 1000000) AS orders_rank_day18,
-    COALESCE(ais.orders_rank_day19, 1000000) AS orders_rank_day19,
-    COALESCE(ais.orders_rank_day20, 1000000) AS orders_rank_day20,
-    COALESCE(ais.orders_rank_day21, 1000000) AS orders_rank_day21,
-    COALESCE(ais.orders_rank_day22, 1000000) AS orders_rank_day22,
-    COALESCE(ais.orders_rank_day23, 1000000) AS orders_rank_day23,
-    COALESCE(ais.orders_rank_day24, 1000000) AS orders_rank_day24,
-    COALESCE(ais.orders_rank_day25, 1000000) AS orders_rank_day25,
-    COALESCE(ais.orders_rank_day26, 1000000) AS orders_rank_day26,
-    COALESCE(ais.orders_rank_day27, 1000000) AS orders_rank_day27,
-    COALESCE(ais.orders_rank_day28, 1000000) AS orders_rank_day28,
-    COALESCE(ais.orders_rank_day29, 1000000) AS orders_rank_day29,
-    COALESCE(ais.orders_rank_day30, 1000000) AS orders_rank_day30,
-    COALESCE(ais.orders_rank_day31, 1000000) AS orders_rank_day31,
-    COALESCE(ais.orders_rank_day32, 1000000) AS orders_rank_day32,
-    COALESCE(ais.orders_rank_day33, 1000000) AS orders_rank_day33,
-    COALESCE(ais.orders_rank_day34, 1000000) AS orders_rank_day34,
-    COALESCE(ais.orders_rank_day35, 1000000) AS orders_rank_day35
 FROM union_all sa
 LEFT JOIN session_stats ss ON ss.session = sa.session
 LEFT JOIN aid_stats ais ON ais.aid = sa.aid
