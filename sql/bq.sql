@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20230119_3/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20230119_3/test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20230119_4/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20230119_4/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -763,10 +763,18 @@ WITH day_num AS (
         GROUP BY session
     ) t
     CROSS JOIN (
-    SELECT
-        aid
-    FROM aid_stats
-    WHERE orders_rank <= 20
+        SELECT
+            aid
+        FROM aid_stats
+        WHERE (
+            orders_rank_day1 <= 10 OR
+            orders_rank_day2 <= 10 OR
+            orders_rank_day3 <= 10 OR
+            orders_rank_day4 <= 10 OR
+            orders_rank_day5 <= 10 OR
+            orders_rank_day6 <= 10 OR
+            orders_rank_day7 <= 10
+        )
     )
 ), union_all AS (
     SELECT
