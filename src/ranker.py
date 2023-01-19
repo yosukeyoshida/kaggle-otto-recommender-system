@@ -20,8 +20,8 @@ class CFG:
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
-    input_train_dir = "20230119_3"
-    input_test_dir = "20230119_3"
+    input_train_dir = "20230119_4"
+    input_test_dir = "20230119_4"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
@@ -421,7 +421,7 @@ def run_inference(output_dir, single_fold):
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/session_daily_stats")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/order_rank_daily")
         wandb.log({"objective": CFG.objective})
         run_name = wandb.run.name
     if run_name is not None:
