@@ -14,7 +14,7 @@ class CFG:
     wandb = True
     num_iterations = 5000
     cv_only = False
-    save_score = True
+    save_score = False
     chunk_split_size = 20
     chunk_session_split_size = 20
     n_folds = 5
@@ -369,9 +369,9 @@ def main(single_fold):
         wandb.init(project="kaggle-otto", job_type="catboost", group="feature/save_score")
         run_name = wandb.run.name
     if run_name is not None:
-        output_dir = os.path.join("output/lgbm", run_name)
+        output_dir = os.path.join("output/catboost", run_name)
     else:
-        output_dir = "output/lgbm"
+        output_dir = "output/catboost"
     os.makedirs(output_dir, exist_ok=True)
 
     clicks_recall = run_train("clicks", output_dir, single_fold)
