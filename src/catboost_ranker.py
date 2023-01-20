@@ -8,6 +8,7 @@ import pickle
 import pandas as pd
 import wandb
 from sklearn.model_selection import GroupKFold
+from ranker import CFG as RankerCFG
 
 
 class CFG:
@@ -18,105 +19,10 @@ class CFG:
     chunk_split_size = 20
     chunk_session_split_size = 20
     n_folds = 5
-    input_train_dir = "20230116"
-    input_test_dir = "20230116"
-    dtypes = {
-        "session": "int32",
-        "aid": "int32",
-        "session_clicks_cnt": "int16",
-        "session_carts_cnt": "int16",
-        "session_orders_cnt": "int16",
-        "session_aid_clicks_cnt": "int16",
-        "session_aid_carts_cnt": "int16",
-        "session_aid_orders_cnt": "int16",
-        "clicks_rank": "int32",
-        "carts_rank": "int32",
-        "orders_rank": "int32",
-        "session_clicks_unique_aid": "int16",
-        "session_carts_unique_aid": "int16",
-        "session_orders_unique_aid": "int16",
-        "clicks_uu_rank": "int32",
-        "carts_uu_rank": "int32",
-        "orders_uu_rank": "int32",
-        "min_day_num": "int8",
-        "max_day_num": "int8",
-        "clicks_rank_day1": "int32",
-        "clicks_rank_day2": "int32",
-        "clicks_rank_day3": "int32",
-        "clicks_rank_day4": "int32",
-        "clicks_rank_day5": "int32",
-        "clicks_rank_day6": "int32",
-        "clicks_rank_day7": "int32",
-        "clicks_rank_day8": "int32",
-        "carts_rank_day1": "int32",
-        "carts_rank_day2": "int32",
-        "carts_rank_day3": "int32",
-        "carts_rank_day4": "int32",
-        "carts_rank_day5": "int32",
-        "carts_rank_day6": "int32",
-        "carts_rank_day7": "int32",
-        "carts_rank_day8": "int32",
-        "orders_rank_day1": "int32",
-        "orders_rank_day2": "int32",
-        "orders_rank_day3": "int32",
-        "orders_rank_day4": "int32",
-        "orders_rank_day5": "int32",
-        "orders_rank_day6": "int32",
-        "orders_rank_day7": "int32",
-        "orders_rank_day8": "int32",
-    }
-    float_cols = [
-        "avg_action_num_reverse_chrono",
-        "min_action_num_reverse_chrono",
-        "max_action_num_reverse_chrono",
-        "avg_sec_since_session_start",
-        "min_sec_since_session_start",
-        "max_sec_since_session_start",
-        "avg_sec_to_session_end",
-        "min_sec_to_session_end",
-        "max_sec_to_session_end",
-        "avg_log_recency_score",
-        "min_log_recency_score",
-        "max_log_recency_score",
-        "avg_type_weighted_log_recency_score",
-        "min_type_weighted_log_recency_score",
-        "max_type_weighted_log_recency_score",
-        "covisit_clicks_candidate_num",
-        "covisit_carts_candidate_num",
-        "covisit_orders_candidate_num",
-        "w2v_candidate_num",
-        "gru4rec_candidate_num",
-        "narm_candidate_num",
-        "sasrec_candidate_num",
-        "srgnn_candidate_num",
-        "session_clicks_carts_ratio",
-        "session_carts_orders_ratio",
-        "session_clicks_orders_ratio",
-        "avg_sec_clicks_carts",
-        "min_sec_clicks_carts",
-        "max_sec_clicks_carts",
-        "avg_sec_carts_orders",
-        "min_sec_carts_orders",
-        "max_sec_carts_orders",
-        "avg_clicks_cnt",
-        "avg_carts_cnt",
-        "avg_orders_cnt",
-        "clicks_carts_ratio",
-        "carts_orders_ratio",
-        "clicks_orders_ratio",
-        "avg_sec_clicks_carts",
-        "min_sec_clicks_carts",
-        "max_sec_clicks_carts",
-        "avg_sec_carts_orders",
-        "min_sec_carts_orders",
-        "max_sec_carts_orders",
-        "avg_sec_session_clicks_carts",
-        "min_sec_session_clicks_carts",
-        "max_sec_session_clicks_carts",
-        "avg_sec_session_carts_orders",
-        "min_sec_session_carts_orders",
-        "max_sec_session_carts_orders",
-    ]
+    input_train_dir = RankerCFG.input_train_dir
+    input_test_dir = RankerCFG.input_train_dir
+    dtypes = RankerCFG.dtypes
+    float_cols = RankerCFG.float_cols
 
 global max_score
 global best_iteration
@@ -229,10 +135,10 @@ def run_train(type, output_dir, single_fold):
             'iterations': CFG.num_iterations,
             'custom_metric': ['NDCG:top=20'],
             'random_seed': 42,
-            "has_time": True,
+            # "has_time": True,
             'early_stopping_rounds': 100,
             "use_best_model": True,
-            # "task_type": "GPU",
+            "task_type": "GPU",
         }
         _train = Pool(
             data=X_train,
