@@ -16,7 +16,6 @@ class CFG:
     wandb = True
     num_iterations = 2000
     cv_only = False
-    save_score = False
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
@@ -210,7 +209,7 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, output_dir, single_fold, remove_aid=False):
+def run_train(type, output_dir, single_fold, remove_aid):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
@@ -353,7 +352,7 @@ def split_list(l, n):
         yield l[idx : idx + n]
 
 
-def run_inference(output_dir, single_fold, remove_aid=False):
+def run_inference(output_dir, single_fold, remove_aid):
     path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
     files = glob.glob(path)
     preds = []
