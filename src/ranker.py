@@ -16,12 +16,11 @@ class CFG:
     wandb = True
     num_iterations = 2000
     cv_only = False
-    save_score = False
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
-    input_train_dir = "20230119_4"
-    input_test_dir = "20230119_4"
+    input_train_dir = "20230121"
+    input_test_dir = "20230121"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
@@ -210,7 +209,7 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def run_train(type, output_dir, single_fold):
+def run_train(type, output_dir, single_fold, remove_aid):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
@@ -240,12 +239,18 @@ def run_train(type, output_dir, single_fold):
     del train_labels_all
     gc.collect()
 
-    feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
+    if remove_aid:
+        feature_cols = train.drop(columns=["gt", "session", "type", "aid"]).columns.tolist()
+    else:
+        feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
     if CFG.wandb:
         wandb.log({f"feature size": len(feature_cols)})
     targets = train["gt"]
     group = train["session"]
-    train = train[feature_cols + ["session"]]
+    if remove_aid:
+        train = train[feature_cols + ["session", "aid"]]
+    else:
+        train = train[feature_cols + ["session"]]
     print(f"train shape: {train.shape}")
 
     train_labels = train_labels.groupby("session")["aid"].apply(list).to_frame()
@@ -347,7 +352,7 @@ def split_list(l, n):
         yield l[idx : idx + n]
 
 
-def run_inference(output_dir, single_fold):
+def run_inference(output_dir, single_fold, remove_aid):
     path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
     files = glob.glob(path)
     preds = []
@@ -362,7 +367,10 @@ def run_inference(output_dir, single_fold):
         test = pd.concat(dfs)
         del dfs
         gc.collect()
-        feature_cols = test.drop(columns=["session"]).columns.tolist()
+        if remove_aid:
+            feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
+        else:
+            feature_cols = test.drop(columns=["session"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
             print(f"type={type}")
             pred_folds = []
@@ -384,27 +392,31 @@ def run_inference(output_dir, single_fold):
                     pred["score"] += pf["score"]
                 pred["score"] = pred["score"] / CFG.n_folds
             preds.append(pred)
-            del pred_folds
+            del pred_folds, pred
             gc.collect()
         del test
         gc.collect()
     preds = pd.concat(preds)
 
-    if CFG.save_score:
-        sessions = sorted(preds["session"].unique())
-        chunk_size = math.ceil(len(sessions) / CFG.chunk_session_split_size)
-        sessions_list = split_list(sessions, chunk_size)
-        preds_save_dir = os.path.join(output_dir, "preds")
-        os.makedirs(preds_save_dir, exist_ok=True)
-        for i, sessions in enumerate(sessions_list):
-            _preds = preds[preds["session"].isin(sessions)]
-            dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
-            del _preds
-            gc.collect()
-    else:
-        dfs = []
+    sessions = sorted(preds["session"].unique())
+    chunk_size = math.ceil(len(sessions) / CFG.chunk_session_split_size)
+    sessions_list = split_list(sessions, chunk_size)
+    preds_save_dir = os.path.join(output_dir, "preds")
+    os.makedirs(preds_save_dir, exist_ok=True)
+    for i, sessions in enumerate(sessions_list):
+        _preds = preds[preds["session"].isin(sessions)]
+        dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
+        del _preds
+        gc.collect()
+    del preds
+    gc.collect()
+
+    dfs = []
+    for i in range(CFG.chunk_split_size):
+        file = os.path.join(preds_save_dir, f"preds_{i}.pkl")
+        print(file)
+        preds = pickle.load(open(file, "rb"))
         for type in ["clicks", "carts", "orders"]:
-            print(type)
             _preds = preds[preds["type"] == type]
             _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
             _preds = _preds.groupby("session")["aid"].apply(list)
@@ -413,12 +425,14 @@ def run_inference(output_dir, single_fold):
             dfs.append(_preds)
             del _preds
             gc.collect()
-        sub = pd.concat(dfs)
-        sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
-        sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+        del preds
+        gc.collect()
+    sub = pd.concat(dfs)
+    sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
+    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main(single_fold):
+def main(single_fold, remove_aid):
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="ranker", group="feature/order_rank_daily")
@@ -430,21 +444,23 @@ def main(single_fold):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir, single_fold)
-    carts_recall = run_train("carts", output_dir, single_fold)
-    orders_recall = run_train("orders", output_dir, single_fold)
+    clicks_recall = run_train("clicks", output_dir, single_fold, remove_aid)
+    carts_recall = run_train("carts", output_dir, single_fold, remove_aid)
+    orders_recall = run_train("orders", output_dir, single_fold, remove_aid)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
+        wandb.log({"remove_aid": remove_aid})
     if not CFG.cv_only:
-        run_inference(output_dir, single_fold)
+        run_inference(output_dir, single_fold, remove_aid)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_fold", action="store_true")
+    parser.add_argument("--remove_aid", action="store_true")
     parser.add_argument("--objective", type=str, default="lambdarank")
     args = parser.parse_args()
     CFG.objective = args.objective
-    main(args.single_fold)
+    main(args.single_fold, args.remove_aid)
