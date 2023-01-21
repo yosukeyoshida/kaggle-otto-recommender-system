@@ -409,29 +409,28 @@ def run_inference(output_dir, single_fold, remove_aid=False):
         dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
         del _preds
         gc.collect()
-    # preds_save_dir = os.path.join(output_dir, "preds")
-    # os.makedirs(preds_save_dir, exist_ok=True)
-    # for type in ["clicks", "carts", "orders"]:
-    #     print(type)
-    #     _preds = preds[preds["type"] == type]
-    #     _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
-    #     _preds = _preds.groupby("session")["aid"].apply(list)
-    #     _preds = _preds.to_frame().reset_index()
-    #     _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
-    #     dump_pickle(os.path.join(preds_save_dir, f"preds_{type}.pkl"), _preds)
-    #     del _preds
-    #     gc.collect()
-    # del preds
-    # gc.collect()
-    # dfs = []
-    # for type in ["clicks", "carts", "orders"]:
-    #     df = pickle.load(open(os.path.join(preds_save_dir, f"preds_{type}.pkl"), "rb"))
-    #     dfs.append(df)
-    #     del df
-    #     gc.collect()
-    # sub = pd.concat(dfs)
-    # sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
-    # sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+
+    preds_save_dir = os.path.join(output_dir, "preds")
+    os.makedirs(preds_save_dir, exist_ok=True)
+    files = glob.glob(preds_save_dir)
+    dfs = []
+    for file in files:
+        print(file)
+        preds = pickle.load(open(file, "rb"))
+        for type in ["clicks", "carts", "orders"]:
+            _preds = preds[preds["type"] == type]
+            _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
+            _preds = _preds.groupby("session")["aid"].apply(list)
+            _preds = _preds.to_frame().reset_index()
+            _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
+            dfs.append(_preds)
+            del _preds
+            gc.collect()
+        del preds
+        gc.collect()
+    sub = pd.concat(dfs)
+    sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
+    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
 def main(single_fold, remove_aid):
