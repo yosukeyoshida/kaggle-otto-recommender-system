@@ -409,12 +409,12 @@ def run_inference(output_dir, single_fold, remove_aid=False):
         dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
         del _preds
         gc.collect()
+    del preds
+    gc.collect()
 
-    preds_save_dir = os.path.join(output_dir, "preds")
-    os.makedirs(preds_save_dir, exist_ok=True)
-    files = glob.glob(preds_save_dir)
     dfs = []
-    for file in files:
+    for i in range(CFG.chunk_split_size):
+        file = os.path.join(preds_save_dir, f"preds_{i}.pkl")
         print(file)
         preds = pickle.load(open(file, "rb"))
         for type in ["clicks", "carts", "orders"]:
