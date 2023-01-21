@@ -1,7 +1,7 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20230121/train_*.parquet', -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset_test/20230121/test_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20230122/train_*.parquet', -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset_test/20230122/test_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -369,9 +369,6 @@ WITH day_num AS (
         SUM(CASE WHEN d.num = 5  AND type = 'orders' THEN 1 ELSE 0 END) AS session_aid_orders_cnt_day5,
         SUM(CASE WHEN d.num = 6  AND type = 'orders' THEN 1 ELSE 0 END) AS session_aid_orders_cnt_day6,
         SUM(CASE WHEN d.num = 7  AND type = 'orders' THEN 1 ELSE 0 END) AS session_aid_orders_cnt_day7,
-        NULL AS covisit_clicks_candidate_num,
-        NULL AS covisit_carts_candidate_num,
-        NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
@@ -379,61 +376,6 @@ WITH day_num AS (
         NULL AS srgnn_candidate_num,
     FROM aid_list t
     INNER JOIN day_num d ON d.dt = t.dt
-    GROUP BY session, aid
-), covisit AS (
-    SELECT
-        session,
-        aid,
-        NULL AS avg_action_num_reverse_chrono,
-        NULL AS min_action_num_reverse_chrono,
-        NULL AS max_action_num_reverse_chrono,
-        NULL AS avg_sec_since_session_start,
-        NULL AS min_sec_since_session_start,
-        NULL AS max_sec_since_session_start,
-        NULL AS avg_sec_to_session_end,
-        NULL AS min_sec_to_session_end,
-        NULL AS max_sec_to_session_end,
-        NULL AS avg_log_recency_score,
-        NULL AS min_log_recency_score,
-        NULL AS max_log_recency_score,
-        NULL AS avg_type_weighted_log_recency_score,
-        NULL AS min_type_weighted_log_recency_score,
-        NULL AS max_type_weighted_log_recency_score,
-        NULL AS session_aid_clicks_cnt,
-        NULL AS session_aid_carts_cnt,
-        NULL AS session_aid_orders_cnt,
-        NULL AS session_aid_clicks_cnt_day1,
-        NULL AS session_aid_clicks_cnt_day2,
-        NULL AS session_aid_clicks_cnt_day3,
-        NULL AS session_aid_clicks_cnt_day4,
-        NULL AS session_aid_clicks_cnt_day5,
-        NULL AS session_aid_clicks_cnt_day6,
-        NULL AS session_aid_clicks_cnt_day7,
-        NULL AS session_aid_carts_cnt_day1,
-        NULL AS session_aid_carts_cnt_day2,
-        NULL AS session_aid_carts_cnt_day3,
-        NULL AS session_aid_carts_cnt_day4,
-        NULL AS session_aid_carts_cnt_day5,
-        NULL AS session_aid_carts_cnt_day6,
-        NULL AS session_aid_carts_cnt_day7,
-        NULL AS session_aid_orders_cnt_day1,
-        NULL AS session_aid_orders_cnt_day2,
-        NULL AS session_aid_orders_cnt_day3,
-        NULL AS session_aid_orders_cnt_day4,
-        NULL AS session_aid_orders_cnt_day5,
-        NULL AS session_aid_orders_cnt_day6,
-        NULL AS session_aid_orders_cnt_day7,
-        MAX(CASE WHEN type = 'clicks' THEN rank ELSE NULL END) AS covisit_clicks_candidate_num,
-        MAX(CASE WHEN type = 'carts' THEN rank ELSE NULL END) AS covisit_carts_candidate_num,
-        MAX(CASE WHEN type = 'orders' THEN rank ELSE NULL END) AS covisit_orders_candidate_num,
-        NULL AS w2v_candidate_num,
-        NULL AS gru4rec_candidate_num,
-        NULL AS narm_candidate_num,
-        NULL AS sasrec_candidate_num,
-        NULL AS srgnn_candidate_num,
-    FROM `kaggle-352109.otto.covisit_c100_cv` -- FIXME
---     FROM `kaggle-352109.otto.covisit_c100`
-    WHERE aid is not NULL
     GROUP BY session, aid
 ), w2v AS (
     SELECT
@@ -478,9 +420,6 @@ WITH day_num AS (
         NULL AS session_aid_orders_cnt_day5,
         NULL AS session_aid_orders_cnt_day6,
         NULL AS session_aid_orders_cnt_day7,
-        NULL AS covisit_clicks_candidate_num,
-        NULL AS covisit_carts_candidate_num,
-        NULL AS covisit_orders_candidate_num,
         rank AS w2v_candidate_num,
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
@@ -532,9 +471,6 @@ WITH day_num AS (
         NULL AS session_aid_orders_cnt_day5,
         NULL AS session_aid_orders_cnt_day6,
         NULL AS session_aid_orders_cnt_day7,
-        NULL AS covisit_clicks_candidate_num,
-        NULL AS covisit_carts_candidate_num,
-        NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
         rank AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
@@ -586,9 +522,6 @@ WITH day_num AS (
         NULL AS session_aid_orders_cnt_day5,
         NULL AS session_aid_orders_cnt_day6,
         NULL AS session_aid_orders_cnt_day7,
-        NULL AS covisit_clicks_candidate_num,
-        NULL AS covisit_carts_candidate_num,
-        NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
         NULL AS gru4rec_candidate_num,
         ROW_NUMBER() OVER (PARTITION BY session)  AS narm_candidate_num,
@@ -640,9 +573,6 @@ WITH day_num AS (
         NULL AS session_aid_orders_cnt_day5,
         NULL AS session_aid_orders_cnt_day6,
         NULL AS session_aid_orders_cnt_day7,
-        NULL AS covisit_clicks_candidate_num,
-        NULL AS covisit_carts_candidate_num,
-        NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
@@ -694,9 +624,6 @@ WITH day_num AS (
         NULL AS session_aid_orders_cnt_day5,
         NULL AS session_aid_orders_cnt_day6,
         NULL AS session_aid_orders_cnt_day7,
-        NULL AS covisit_clicks_candidate_num,
-        NULL AS covisit_carts_candidate_num,
-        NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
@@ -748,9 +675,6 @@ WITH day_num AS (
         NULL AS session_aid_orders_cnt_day5,
         NULL AS session_aid_orders_cnt_day6,
         NULL AS session_aid_orders_cnt_day7,
-        NULL AS covisit_clicks_candidate_num,
-        NULL AS covisit_carts_candidate_num,
-        NULL AS covisit_orders_candidate_num,
         NULL AS w2v_candidate_num,
         NULL AS gru4rec_candidate_num,
         NULL AS narm_candidate_num,
@@ -820,9 +744,6 @@ WITH day_num AS (
         MAX(session_aid_orders_cnt_day5) AS session_aid_orders_cnt_day5,
         MAX(session_aid_orders_cnt_day6) AS session_aid_orders_cnt_day6,
         MAX(session_aid_orders_cnt_day7) AS session_aid_orders_cnt_day7,
-        MAX(covisit_clicks_candidate_num) AS covisit_clicks_candidate_num,
-        MAX(covisit_carts_candidate_num) AS covisit_carts_candidate_num,
-        MAX(covisit_orders_candidate_num) AS covisit_orders_candidate_num,
         MAX(w2v_candidate_num) AS w2v_candidate_num,
         MAX(gru4rec_candidate_num) AS gru4rec_candidate_num,
         MAX(narm_candidate_num) AS narm_candidate_num,
@@ -830,8 +751,6 @@ WITH day_num AS (
         MAX(srgnn_candidate_num) AS srgnn_candidate_num,
     FROM (
         SELECT * FROM aggregate_by_session_aid
-        UNION ALL
-        SELECT * FROM covisit
         UNION ALL
         SELECT * FROM w2v
         UNION ALL
@@ -930,9 +849,6 @@ SELECT
     COALESCE(sa.session_aid_orders_cnt_day5, 0) AS session_aid_orders_cnt_day5,
     COALESCE(sa.session_aid_orders_cnt_day6, 0) AS session_aid_orders_cnt_day6,
     COALESCE(sa.session_aid_orders_cnt_day7, 0) AS session_aid_orders_cnt_day7,
-    sa.covisit_clicks_candidate_num,
-    sa.covisit_carts_candidate_num,
-    sa.covisit_orders_candidate_num,
     sa.w2v_candidate_num,
     sa.gru4rec_candidate_num,
     sa.narm_candidate_num,
