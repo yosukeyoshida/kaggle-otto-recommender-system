@@ -19,8 +19,8 @@ class CFG:
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
-    input_train_dir = "20230121"
-    input_test_dir = "20230121"
+    input_train_dir = "20230122"
+    input_test_dir = "20230122"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
