@@ -411,7 +411,8 @@ def run_inference(output_dir, single_fold, remove_aid=False):
             del _preds
             gc.collect()
     else:
-        dfs = []
+        preds_save_dir = os.path.join(output_dir, "preds")
+        os.makedirs(preds_save_dir, exist_ok=True)
         for type in ["clicks", "carts", "orders"]:
             print(type)
             _preds = preds[preds["type"] == type]
@@ -419,8 +420,16 @@ def run_inference(output_dir, single_fold, remove_aid=False):
             _preds = _preds.groupby("session")["aid"].apply(list)
             _preds = _preds.to_frame().reset_index()
             _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
-            dfs.append(_preds)
+            dump_pickle(os.path.join(preds_save_dir, f"preds_{type}.pkl"), _preds)
             del _preds
+            gc.collect()
+        del preds
+        gc.collect()
+        dfs = []
+        for type in ["clicks", "carts", "orders"]:
+            df = pickle.load(open(os.path.join(preds_save_dir, f"preds_{type}.pkl"), "rb"))
+            dfs.append(df)
+            del df
             gc.collect()
         sub = pd.concat(dfs)
         sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
