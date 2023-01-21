@@ -399,41 +399,39 @@ def run_inference(output_dir, single_fold, remove_aid=False):
         gc.collect()
     preds = pd.concat(preds)
 
-    if CFG.save_score:
-        sessions = sorted(preds["session"].unique())
-        chunk_size = math.ceil(len(sessions) / CFG.chunk_session_split_size)
-        sessions_list = split_list(sessions, chunk_size)
-        preds_save_dir = os.path.join(output_dir, "preds")
-        os.makedirs(preds_save_dir, exist_ok=True)
-        for i, sessions in enumerate(sessions_list):
-            _preds = preds[preds["session"].isin(sessions)]
-            dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
-            del _preds
-            gc.collect()
-    else:
-        preds_save_dir = os.path.join(output_dir, "preds")
-        os.makedirs(preds_save_dir, exist_ok=True)
-        for type in ["clicks", "carts", "orders"]:
-            print(type)
-            _preds = preds[preds["type"] == type]
-            _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
-            _preds = _preds.groupby("session")["aid"].apply(list)
-            _preds = _preds.to_frame().reset_index()
-            _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
-            dump_pickle(os.path.join(preds_save_dir, f"preds_{type}.pkl"), _preds)
-            del _preds
-            gc.collect()
-        del preds
+    sessions = sorted(preds["session"].unique())
+    chunk_size = math.ceil(len(sessions) / CFG.chunk_session_split_size)
+    sessions_list = split_list(sessions, chunk_size)
+    preds_save_dir = os.path.join(output_dir, "preds")
+    os.makedirs(preds_save_dir, exist_ok=True)
+    for i, sessions in enumerate(sessions_list):
+        _preds = preds[preds["session"].isin(sessions)]
+        dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
+        del _preds
         gc.collect()
-        dfs = []
-        for type in ["clicks", "carts", "orders"]:
-            df = pickle.load(open(os.path.join(preds_save_dir, f"preds_{type}.pkl"), "rb"))
-            dfs.append(df)
-            del df
-            gc.collect()
-        sub = pd.concat(dfs)
-        sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
-        sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+    # preds_save_dir = os.path.join(output_dir, "preds")
+    # os.makedirs(preds_save_dir, exist_ok=True)
+    # for type in ["clicks", "carts", "orders"]:
+    #     print(type)
+    #     _preds = preds[preds["type"] == type]
+    #     _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
+    #     _preds = _preds.groupby("session")["aid"].apply(list)
+    #     _preds = _preds.to_frame().reset_index()
+    #     _preds["session_type"] = _preds["session"].apply(lambda x: str(x) + f"_{type}")
+    #     dump_pickle(os.path.join(preds_save_dir, f"preds_{type}.pkl"), _preds)
+    #     del _preds
+    #     gc.collect()
+    # del preds
+    # gc.collect()
+    # dfs = []
+    # for type in ["clicks", "carts", "orders"]:
+    #     df = pickle.load(open(os.path.join(preds_save_dir, f"preds_{type}.pkl"), "rb"))
+    #     dfs.append(df)
+    #     del df
+    #     gc.collect()
+    # sub = pd.concat(dfs)
+    # sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
+    # sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
 def main(single_fold, remove_aid):
