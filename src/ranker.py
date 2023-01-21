@@ -432,7 +432,7 @@ def run_inference(output_dir, single_fold, remove_aid):
 def main(single_fold, remove_aid):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/order_rank_daily")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/remove_covisit")
         wandb.log({"objective": CFG.objective})
         run_name = wandb.run.name
     if run_name is not None:
