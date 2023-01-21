@@ -18,7 +18,7 @@ class CFG:
     cv_only = False
     save_score = False
     n_folds = 5
-    chunk_split_size = 30
+    chunk_split_size = 20
     chunk_session_split_size = 20
     input_train_dir = "20230121"
     input_test_dir = "20230121"
@@ -393,7 +393,7 @@ def run_inference(output_dir, single_fold, remove_aid=False):
                     pred["score"] += pf["score"]
                 pred["score"] = pred["score"] / CFG.n_folds
             preds.append(pred)
-            del pred_folds
+            del pred_folds, pred
             gc.collect()
         del test
         gc.collect()
