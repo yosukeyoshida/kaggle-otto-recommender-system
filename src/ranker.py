@@ -209,6 +209,16 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
+def read_session_embeddings():
+    path = f"./input/lightfm/session_embeddings.pkl"
+    df = pickle.load(open(path, "rb"))
+    embeddings_cols = df.drop(columns=["session"]).columns
+    for col in embeddings_cols:
+        df[col] = df[col].astype("float16")
+    df["session"] = df["session"].astype("int32")
+    return df
+
+
 def run_train(type, output_dir, single_fold, remove_aid):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
@@ -238,6 +248,11 @@ def run_train(type, output_dir, single_fold, remove_aid):
     train = train.sample(frac=1, random_state=42, ignore_index=True)
     del train_labels_all
     gc.collect()
+
+    embeddings_df = read_session_embeddings()
+    print(f"train={train.shape}")
+    train.merge(embeddings_df, on=["session"])
+    print(f"after merge train={train.shape}")
 
     if remove_aid:
         feature_cols = train.drop(columns=["gt", "session", "type", "aid"]).columns.tolist()
