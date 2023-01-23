@@ -7,7 +7,7 @@ import pandas as pd
 
 
 class CFG:
-    n_epochs = 100
+    n_epochs = 30
 
 def read_files(path):
     dfs = []

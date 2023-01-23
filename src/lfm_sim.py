@@ -8,8 +8,8 @@ import polars as pl
 import os
 
 class CFG:
-    input_train_dir = "20230119_4"
-    input_test_dir = "20230119_4"
+    input_train_dir = "20230121"
+    input_test_dir = "20230121"
 
 
 def cos_sim(v1, v2):
