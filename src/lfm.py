@@ -7,7 +7,7 @@ import pandas as pd
 
 
 class CFG:
-    n_epochs = 5
+    n_epochs = 100
 
 def read_files(path):
     dfs = []
@@ -36,10 +36,16 @@ def main(output_dir, **kwargs):
 
     print("train start")
     model = LightFM(loss='warp', no_components=10, random_state=42)
-    model.fit(interactions=interactions, epochs=CFG.n_epochs, verbose=1)
+    model.fit(interactions=interactions, epochs=CFG.n_epochs, verbose=1, num_threads=os.cpu_count())
     print("train end")
 
+    item_embeddings = model.item_embeddings
     user_embeddings = model.user_embeddings
+    mapped_item_embeddings = {name: item_embeddings[index] for name, index in item_feature_map.items()}
+    mapped_user_embeddings = {name: user_embeddings[index] for name, index in user_feature_map.items()}
+    dump_pickle(os.path.join(output_dir, "mapped_item_embeddings.pkl"), mapped_item_embeddings)
+    dump_pickle(os.path.join(output_dir, "mapped_user_embeddings.pkl"), mapped_user_embeddings)
+
     _sessions = []
     _embeddings = []
     for name, index in user_feature_map.items():
