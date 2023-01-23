@@ -26,15 +26,13 @@ def read_ranker_dataset():
         train_list.append(train)
         del train
         gc.collect()
-    train = pd.concat(train_list, axis=0, ignore_index=True)
+    df = pd.concat(train_list, axis=0, ignore_index=True)
     del train_list
     gc.collect()
-    path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
-    test = pl.read_parquet(path).to_pandas()
-    test = test[["session", "aid"]]
-    df = pd.concat([train, test], axis=0)
-    del train, test
-    gc.collect()
+    # path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
+    # test = pl.read_parquet(path).to_pandas()
+    # test = test[["session", "aid"]]
+    # df = pd.concat([train, test], axis=0)
     df.drop_duplicates(inplace=True, ignore_index=True)
     return df
 
