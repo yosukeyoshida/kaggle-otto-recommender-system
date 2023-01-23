@@ -251,7 +251,7 @@ def run_train(type, output_dir, single_fold, remove_aid):
 
     embeddings_df = read_session_embeddings()
     print(f"train={train.shape}")
-    train.merge(embeddings_df, on=["session"])
+    train = train.merge(embeddings_df, on=["session"])
     print(f"after merge train={train.shape}")
 
     if remove_aid:
@@ -373,6 +373,7 @@ def run_inference(output_dir, single_fold, remove_aid):
     preds = []
     chunk_size = math.ceil(len(files) / CFG.chunk_split_size)
     files_list = split_list(files, chunk_size)
+    embeddings_df = read_session_embeddings()
     for files in files_list:
         dfs = []
         for file in files:
@@ -382,6 +383,7 @@ def run_inference(output_dir, single_fold, remove_aid):
         test = pd.concat(dfs)
         del dfs
         gc.collect()
+        test = test.merge(embeddings_df, on=["session"])
         if remove_aid:
             feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
         else:
