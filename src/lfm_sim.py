@@ -58,6 +58,8 @@ def dump_pickle(path, o):
 def main(output_dir):
     print("read ranker dataset")
     train = read_ranker_dataset()
+    for c in ["sim_max", "sim_min", "sim_mean", "sim_sum"]:
+        train.loc[:, c] = np.nan
     print("read interactions")
     interactions = read_interactions()
     print("read item embeddings")
