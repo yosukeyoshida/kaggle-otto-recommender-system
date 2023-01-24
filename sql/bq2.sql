@@ -1,8 +1,8 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20230121/clicks/train_*.parquet',  -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset/20230121/carts/train_*.parquet',
---     uri='gs://kaggle-yosuke/lgbm_dataset/20230121/orders/train_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20230121_2/clicks/train_*.parquet',  -- FIXME
+--     uri='gs://kaggle-yosuke/lgbm_dataset/20230121_2/carts/train_*.parquet',
+--     uri='gs://kaggle-yosuke/lgbm_dataset/20230121_2/orders/train_*.parquet',
     format='PARQUET',
     overwrite=true
   )
@@ -54,7 +54,7 @@ WITH joined AS (
       WHERE j.type is NULL
     ) t
   ) t
-  WHERE rn <= 20 * gt_cnt
+  WHERE rn <= 40 * gt_cnt
 ), positive_list AS (
   SELECT
     session,
