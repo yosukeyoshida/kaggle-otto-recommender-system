@@ -109,14 +109,14 @@ def main(output_dir):
     session_embeddings_tensor = torch.tensor([*session_embeddings.values()])
     del embeddings, session_embeddings
     gc.collect()
-    sims = []
     batch_size = 50
+    sims_dir = os.path.join(output_dir, "sims")
+    os.makedirs(sims_dir, exist_ok=True)
     for i in tqdm(range(math.ceil(len(embeddings_tensor) / batch_size))):
         sim = cosine_similarity(embeddings_tensor[i * batch_size:(i + 1) * batch_size], session_embeddings_tensor)
-        sims.append(sim)
+        dump_pickle(os.path.join(sims_dir, f"sims{i}.pkl"), sim)
         del sim
         gc.collect()
-    dump_pickle(os.path.join(output_dir, "sims.pkl"), sims)
 
 
 if __name__ == "__main__":
