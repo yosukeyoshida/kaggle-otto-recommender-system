@@ -37,7 +37,7 @@ def read_interactions():
 
 
 def read_item_embeddings():
-    path = "./output/lightfm/components16/mapped_item_embeddings.pkl"
+    path = "./input/lightfm/components16/mapped_item_embeddings.pkl"
     df = pickle.load(open(path, "rb"))
     return df
 
