@@ -1,4 +1,5 @@
 from lightfm import LightFM
+import argparse
 import os
 from util import dump_pickle
 from lightfm.data import Dataset
@@ -7,7 +8,8 @@ import pandas as pd
 
 
 class CFG:
-    n_epochs = 30
+    n_epochs = 100
+    no_components = 10
 
 def read_files(path):
     dfs = []
@@ -35,7 +37,7 @@ def main(output_dir, **kwargs):
     print("build_interactions end")
 
     print("train start")
-    model = LightFM(loss='warp', no_components=10, random_state=42)
+    model = LightFM(loss='warp', no_components=CFG.no_components, random_state=42)
     model.fit(interactions=interactions, epochs=CFG.n_epochs, verbose=1, num_threads=os.cpu_count())
     print("train end")
 
@@ -52,7 +54,7 @@ def main(output_dir, **kwargs):
         _sessions.append(name)
         _embeddings.append(user_embeddings[index])
     df = pd.DataFrame({"session": _sessions, "embedding": _embeddings})
-    embed_df = pd.DataFrame(df["embedding"].to_list(), columns=[f"session_embedding{i}" for i in range(10)])
+    embed_df = pd.DataFrame(df["embedding"].to_list(), columns=[f"session_embedding{i}" for i in range(CFG.no_components)])
     df = pd.concat([df, embed_df], axis=1)
     df = df.drop(columns=["embedding"])
     df = df.reset_index(drop=True)
@@ -60,6 +62,10 @@ def main(output_dir, **kwargs):
 
 
 if __name__ == "__main__":
-    output_dir = "output/lightfm"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--no_components", type=int)
+    args = parser.parse_args()
+    CFG.no_components = args.no_components
+    output_dir = f"output/lightfm/epoch{CFG.no_components}"
     os.makedirs(output_dir, exist_ok=True)
     main(output_dir=output_dir)

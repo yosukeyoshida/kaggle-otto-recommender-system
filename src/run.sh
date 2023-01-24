@@ -1,2 +1,2 @@
-python src/ranker.py --single_fold --remove_aid
-python src/ranker.py --single_fold
+python src/lfm.py --no_components 16
+python src/lfm.py --no_components 32
