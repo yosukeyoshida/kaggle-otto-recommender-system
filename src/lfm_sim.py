@@ -116,8 +116,6 @@ def main(output_dir):
         sims.append(sim)
         del sim
         gc.collect()
-        if i > 5:
-            break
     dump_pickle(os.path.join(output_dir, "sims.pkl"), sims)
 
 
