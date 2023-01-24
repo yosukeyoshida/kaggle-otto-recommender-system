@@ -1,9 +1,11 @@
 import argparse
+import numpy as np
 import math
 import gc
 import glob
 import os
 import pickle
+from numba import njit
 
 import lightgbm as lgb
 import pandas as pd
@@ -181,6 +183,33 @@ def save_model(i, type, save_model_dir):
     return callback
 
 
+@njit() # the only difference from previous version
+def numba_recall20(preds, targets, groups):
+    total = 0
+    nonempty = 0
+    group_starts = np.cumsum(groups)
+
+    for group_id in range(len(groups)):
+        group_end = group_starts[group_id]
+        group_start = group_end - groups[group_id]
+        ranks = np.argsort(preds[group_start:group_end])[::-1]
+        hits = 0
+        for i in range(min(len(ranks), 20)):
+            hits += targets[group_start + ranks[i]]
+
+        actual = min(20, targets[group_start:group_end].sum())
+        if actual > 0:
+            total += hits / actual
+            nonempty += 1
+
+    return total / nonempty
+
+
+def lgb_numba_recall(preds, lgb_dataset):
+    metric = numba_recall20(preds, lgb_dataset.label, lgb_dataset.group)
+    return 'numba_recall@20', metric, True
+
+
 def read_files(path):
     dfs = []
 
@@ -304,7 +333,7 @@ def run_train(type, output_dir, single_fold, remove_aid):
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
+        ranker = lgb.train(params, _train, feval=lgb_numba_recall, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(5)])
         # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
         # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
