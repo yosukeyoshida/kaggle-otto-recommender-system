@@ -51,8 +51,8 @@ def dump_pickle(path, o):
 def cosine_similarity(candidates_embeddings, interaction_embeddings):
     Z = candidates_embeddings
     B = interaction_embeddings.T
-    Z_norm = torch.linalg.norm(Z, dim=1, keepdim=True)
-    B_norm = torch.linalg.norm(B, dim=0, keepdim=True)
+    Z_norm = torch.linalg.norm(Z, dim=1, keepdim=True).to(torch.device("cuda"))
+    B_norm = torch.linalg.norm(B, dim=0, keepdim=True).to(torch.device("cuda"))
     return ((Z @ B) / (Z_norm @ B_norm)).T
 
 
@@ -105,11 +105,12 @@ def main(output_dir):
     # dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
     session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl"), "rb"))
     embeddings_tensor = torch.tensor([*embeddings.values()])
+    dump_pickle(os.path.join(output_dir, "embeddings_keys.pkl"), [*embeddings.keys()])
     session_embeddings_tensor = torch.tensor([*session_embeddings.values()])
     del embeddings, session_embeddings
     gc.collect()
     sims = []
-    batch_size = 1000
+    batch_size = 50
     for i in tqdm(range(math.ceil(len(embeddings_tensor) / batch_size))):
         sim = cosine_similarity(embeddings_tensor[i * batch_size:(i + 1) * batch_size], session_embeddings_tensor)
         sims.append(sim)
