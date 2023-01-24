@@ -97,12 +97,13 @@ def calc_test_similarity(output_dir):
 
 
 def main(output_dir):
-    session_aids = read_interactions()
+    # session_aids = read_interactions()
     embeddings = read_item_embeddings()
-    session_embeddings = {}
-    for session in tqdm(session_aids.index.tolist()):
-        session_embeddings[session] = torch.concat([torch.tensor(embeddings[i]) for i in set(session_aids[session])]).reshape(-1, CFG.embedding_size).mean(axis=0).tolist()
-    dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
+    # session_embeddings = {}
+    # for session in tqdm(session_aids.index.tolist()):
+    #     session_embeddings[session] = torch.concat([torch.tensor(embeddings[i]) for i in set(session_aids[session])]).reshape(-1, CFG.embedding_size).mean(axis=0).tolist()
+    # dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
+    session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl")))
     embeddings_tensor = torch.tensor([*embeddings.values()])
     session_embeddings_tensor = torch.tensor([*session_embeddings.values()])
     del embeddings, session_embeddings
@@ -114,6 +115,8 @@ def main(output_dir):
         sims.append(sim)
         del sim
         gc.collect()
+        if i > 5:
+            break
     dump_pickle(os.path.join(output_dir, "sims.pkl"), sims)
 
 
