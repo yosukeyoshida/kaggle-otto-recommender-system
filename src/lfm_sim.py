@@ -103,7 +103,7 @@ def main(output_dir):
     # for session in tqdm(session_aids.index.tolist()):
     #     session_embeddings[session] = torch.concat([torch.tensor(embeddings[i]) for i in set(session_aids[session])]).reshape(-1, CFG.embedding_size).mean(axis=0).tolist()
     # dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
-    session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl")))
+    session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl"), "rb"))
     embeddings_tensor = torch.tensor([*embeddings.values()])
     session_embeddings_tensor = torch.tensor([*session_embeddings.values()])
     del embeddings, session_embeddings
