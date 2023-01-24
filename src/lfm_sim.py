@@ -1,4 +1,5 @@
 import pandas as pd
+import math
 from tqdm import tqdm
 import torch
 import pickle
@@ -96,8 +97,24 @@ def calc_test_similarity(output_dir):
 
 
 def main(output_dir):
-    calc_test_similarity(output_dir)
-    calc_train_similarity(output_dir)
+    session_aids = read_interactions()
+    embeddings = read_item_embeddings()
+    session_embeddings = {}
+    for session in tqdm(session_aids.index.tolist()):
+        session_embeddings[session] = torch.concat([torch.tensor(embeddings[i]) for i in set(session_aids[session])]).reshape(-1, CFG.embedding_size).mean(axis=0).tolist()
+    dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
+    embeddings_tensor = torch.tensor([*embeddings.values()])
+    session_embeddings_tensor = torch.tensor([*session_embeddings.values()])
+    del embeddings, session_embeddings
+    gc.collect()
+    sims = []
+    batch_size = 1000
+    for i in tqdm(range(math.ceil(len(embeddings_tensor) / batch_size))):
+        sim = cosine_similarity(embeddings_tensor[i * batch_size:(i + 1) * batch_size], session_embeddings_tensor)
+        sims.append(sim)
+        del sim
+        gc.collect()
+    dump_pickle(os.path.join(output_dir, "sims.pkl"), sims)
 
 
 if __name__ == "__main__":
