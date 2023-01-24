@@ -310,9 +310,9 @@ def run_train(type, output_dir, single_fold, remove_aid):
         if CFG.objective == "lambdarank":
             params = {
                 "objective": "lambdarank",
-                "metric": "ndcg",
+                # "metric": "ndcg",
                 "boosting_type": "gbdt",
-                'ndcg_eval_at': [20],
+                # 'ndcg_eval_at': [20],
                 "num_iterations": CFG.num_iterations,
                 "random_state": 42,
                 # 'lambdarank_truncation_level': 10,
