@@ -49,10 +49,10 @@ def dump_pickle(path, o):
 
 
 def cosine_similarity(candidates_embeddings, interaction_embeddings):
-    Z = candidates_embeddings
-    B = interaction_embeddings.T
-    Z_norm = torch.linalg.norm(Z, dim=1, keepdim=True).to(torch.device("cuda"))
-    B_norm = torch.linalg.norm(B, dim=0, keepdim=True).to(torch.device("cuda"))
+    Z = candidates_embeddings.to(torch.device("cuda"))
+    B = interaction_embeddings.T.to(torch.device("cuda"))
+    Z_norm = torch.linalg.norm(Z, dim=1, keepdim=True)
+    B_norm = torch.linalg.norm(B, dim=0, keepdim=True)
     return ((Z @ B) / (Z_norm @ B_norm)).T
 
 
