@@ -56,7 +56,9 @@ def cosine_similarity(candidates_embeddings, interaction_embeddings):
 
 
 def calc_train_similarity(output_dir):
+    print("calc_train_similarity start")
     for t in ["clicks", "carts", "orders"]:
+        print(t)
         candidates = read_ranker_train_dataset(type="clicks")
         candidates_session_aids = candidates.groupby("session")["aid"].apply(list)
         for c in ["sim_mean", "sim_sum"]:
@@ -75,6 +77,7 @@ def calc_train_similarity(output_dir):
 
 
 def calc_test_similarity(output_dir):
+    print("calc_test_similarity start")
     candidates = read_ranker_test_dataset()
     candidates_session_aids = candidates.groupby("session")["aid"].apply(list)
     for c in ["sim_mean", "sim_sum"]:
@@ -89,7 +92,7 @@ def calc_test_similarity(output_dir):
         sim = cosine_similarity(candidates_embeddings, interaction_embeddings)
         candidates.loc[candidates["session"] == session, "sim_mean"] = sim.mean(axis=0).tolist()
         candidates.loc[candidates["session"] == session, "sim_sum"] = sim.sum(axis=0).tolist()
-    dump_pickle(os.path.join(output_dir, f"candidates_train_{t}.pkl"), candidates)
+    dump_pickle(os.path.join(output_dir, "candidates_test.pkl"), candidates)
 
 
 def main(output_dir):
