@@ -333,7 +333,7 @@ def run_train(type, output_dir, single_fold, remove_aid):
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
         print("train start")
-        ranker = lgb.train(params, _train, feval=lgb_numba_recall, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(5)])
+        ranker = lgb.train(params, _train, feval=lgb_numba_recall, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(10)])
         # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
         # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
@@ -473,9 +473,9 @@ def main(single_fold, remove_aid):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir, single_fold, remove_aid)
-    carts_recall = run_train("carts", output_dir, single_fold, remove_aid)
     orders_recall = run_train("orders", output_dir, single_fold, remove_aid)
+    carts_recall = run_train("carts", output_dir, single_fold, remove_aid)
+    clicks_recall = run_train("clicks", output_dir, single_fold, remove_aid)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
