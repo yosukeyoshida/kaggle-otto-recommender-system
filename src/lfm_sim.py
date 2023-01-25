@@ -37,6 +37,13 @@ def read_interactions():
     return session_aids
 
 
+def read_test_interactions():
+    path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+    df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
+    session_aids = df.groupby("session")["aid"].apply(list)
+    return session_aids
+
+
 def read_item_embeddings():
     path = "./input/lightfm/components16/mapped_item_embeddings.pkl"
     df = pickle.load(open(path, "rb"))
@@ -97,26 +104,28 @@ def calc_test_similarity(output_dir):
 
 
 def main(output_dir):
-    # session_aids = read_interactions()
+    session_aids = read_test_interactions()
     embeddings = read_item_embeddings()
-    # session_embeddings = {}
-    # for session in tqdm(session_aids.index.tolist()):
-    #     session_embeddings[session] = torch.concat([torch.tensor(embeddings[i]) for i in set(session_aids[session])]).reshape(-1, CFG.embedding_size).mean(axis=0).tolist()
-    # dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
-    session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl"), "rb"))
+    session_embeddings = {}
+    for session in tqdm(session_aids.index.tolist()):
+        session_embeddings[session] = torch.concat([torch.tensor(embeddings[i]) for i in set(session_aids[session])]).reshape(-1, CFG.embedding_size).mean(axis=0).tolist()
+    dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
+    # session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl"), "rb"))
     embeddings_tensor = torch.tensor([*embeddings.values()])
     dump_pickle(os.path.join(output_dir, "embeddings_keys.pkl"), [*embeddings.keys()])
     session_embeddings_tensor = torch.tensor([*session_embeddings.values()])
     del embeddings, session_embeddings
     gc.collect()
-    batch_size = 50
-    sims_dir = os.path.join(output_dir, "sims")
-    os.makedirs(sims_dir, exist_ok=True)
-    for i in tqdm(range(math.ceil(len(embeddings_tensor) / batch_size))):
-        sim = cosine_similarity(embeddings_tensor[i * batch_size:(i + 1) * batch_size], session_embeddings_tensor)
-        dump_pickle(os.path.join(sims_dir, f"sims{i}.pkl"), sim)
-        del sim
-        gc.collect()
+    sim = cosine_similarity(embeddings_tensor, session_embeddings_tensor)
+    dump_pickle(os.path.join(output_dir, "sims.pkl"), sim)
+    # batch_size = 50
+    # sims_dir = os.path.join(output_dir, "sims")
+    # os.makedirs(sims_dir, exist_ok=True)
+    # for i in tqdm(range(math.ceil(len(embeddings_tensor) / batch_size))):
+    #     sim = cosine_similarity(embeddings_tensor[i * batch_size:(i + 1) * batch_size], session_embeddings_tensor)
+    #     dump_pickle(os.path.join(sims_dir, f"sims{i}.pkl"), sim)
+    #     del sim
+    #     gc.collect()
 
 
 if __name__ == "__main__":
