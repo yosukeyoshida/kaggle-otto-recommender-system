@@ -1,7 +1,5 @@
-import pandas as pd
-import math
+from annoy import AnnoyIndex
 from tqdm import tqdm
-import torch
 import pickle
 import gc
 import numpy as np
@@ -12,10 +10,6 @@ class CFG:
     input_train_dir = "20230121"
     input_test_dir = "20230121"
     embedding_size = 16
-
-
-def cos_sim(v1, v2):
-    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
 
 
 def read_ranker_train_dataset(type):
@@ -30,15 +24,15 @@ def read_ranker_test_dataset():
     return df
 
 
-def read_interactions():
-    path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+def read_test_interactions():
+    path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
     session_aids = df.groupby("session")["aid"].apply(list)
     return session_aids
 
 
-def read_test_interactions():
-    path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+def read_train_interactions():
+    path = "./input/otto-validation/test_parquet/*"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
     session_aids = df.groupby("session")["aid"].apply(list)
     return session_aids
@@ -55,88 +49,84 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def cosine_similarity(candidates_embeddings, interaction_embeddings):
-    Z = candidates_embeddings.to(torch.device("cuda"))
-    B = interaction_embeddings.T.to(torch.device("cuda"))
-    Z_norm = torch.linalg.norm(Z, dim=1, keepdim=True)
-    B_norm = torch.linalg.norm(B, dim=0, keepdim=True)
-    return ((Z @ B) / (Z_norm @ B_norm)).T
+def calc_train_score(index, output_dir):
+    print("calc_train_score start")
+    session_aids = read_train_interactions()
 
-
-def calc_train_similarity(output_dir):
-    print("calc_train_similarity start")
     for t in ["clicks", "carts", "orders"]:
-        print(t)
-        candidates = read_ranker_train_dataset(type="clicks")
-        candidates_session_aids = candidates.groupby("session")["aid"].apply(list)
-        for c in ["sim_mean", "sim_sum"]:
-            candidates[c] = np.nan
-        session_aids = read_interactions()
-        embeddings = read_item_embeddings()
+        print(f"{t} start")
+        candidates = read_ranker_train_dataset(type=t)
+        candidates_session_aids = candidates.groupby("session")["aid"].apply(list).to_frame().reset_index()
+        for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+            candidates_session_aids[c] = np.nan
+            candidates_session_aids[c] = candidates_session_aids[c].astype('object')
+        del candidates
+        gc.collect()
 
-        print(f"candidates session size: {len(candidates_session_aids)}")
-        for session in tqdm(candidates_session_aids.index.tolist()):
-            interaction_embeddings = torch.concat([torch.tensor(embeddings[aid]) for aid in list(set(session_aids[session]))]).reshape(-1, CFG.embedding_size)
-            candidates_embeddings = torch.concat([torch.tensor(embeddings[aid]) for aid in list(set(candidates_session_aids[session]))]).reshape(-1, CFG.embedding_size)
-            sim = cosine_similarity(candidates_embeddings, interaction_embeddings)
-            candidates.loc[candidates["session"] == session, "sim_mean"] = sim.mean(axis=0).tolist()
-            candidates.loc[candidates["session"] == session, "sim_sum"] = sim.sum(axis=0).tolist()
-        dump_pickle(os.path.join(output_dir, f"candidates_train_{t}.pkl"), candidates)
+        candidates_session_aids = scoring(candidates_session_aids, session_aids, index)
+        candidates_session_aids = candidates_session_aids.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
+        candidates_session_aids.to_parquet(os.path.join(output_dir, f"train_score_{t}.parquet"))
 
 
-def calc_test_similarity(output_dir):
-    print("calc_test_similarity start")
+def calc_test_score(index, output_dir):
+    print("calc_test_score start")
+    session_aids = read_test_interactions()
+
     candidates = read_ranker_test_dataset()
-    candidates_session_aids = candidates.groupby("session")["aid"].apply(list)
-    for c in ["sim_mean", "sim_sum"]:
-        candidates[c] = np.nan
-    session_aids = read_interactions()
-    embeddings = read_item_embeddings()
+    candidates_session_aids = candidates.groupby("session")["aid"].apply(list).to_frame().reset_index()
+    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        candidates_session_aids[c] = np.nan
+        candidates_session_aids[c] = candidates_session_aids[c].astype('object')
+    del candidates
+    gc.collect()
 
-    print(f"candidates session size: {len(candidates_session_aids)}")
-    for session in tqdm(candidates_session_aids.index.tolist()):
-        interaction_embeddings = torch.concat([torch.tensor(embeddings[aid]) for aid in list(set(session_aids[session]))]).reshape(-1, CFG.embedding_size)
-        candidates_embeddings = torch.concat([torch.tensor(embeddings[aid]) for aid in list(set(candidates_session_aids[session]))]).reshape(-1, CFG.embedding_size)
-        sim = cosine_similarity(candidates_embeddings, interaction_embeddings)
-        candidates.loc[candidates["session"] == session, "sim_mean"] = sim.mean(axis=0).tolist()
-        candidates.loc[candidates["session"] == session, "sim_sum"] = sim.sum(axis=0).tolist()
-    dump_pickle(os.path.join(output_dir, "candidates_test.pkl"), candidates)
+    candidates_session_aids = scoring(candidates_session_aids, session_aids, index)
+    candidates_session_aids = candidates_session_aids.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
+    candidates_session_aids.to_parquet(os.path.join(output_dir, "test_score.parquet"))
+
+
+def scoring(candidates_session_aids, session_aids, index):
+    for session in tqdm(candidates_session_aids["session"].values):
+        target_indices = candidates_session_aids.loc[candidates_session_aids["session"] == session].index.values
+        assert len(target_indices) == 1
+        target_index = target_indices[0]
+        score_mean = []
+        score_std = []
+        score_max = []
+        score_min = []
+        score_length = []
+        for candidate_aid in candidates_session_aids.loc[target_index, "aid"]:
+            distances = []
+            for session_aid in session_aids[session]:
+                dis = index.get_distance(session_aid, candidate_aid)
+                distances.append(dis)
+            score_mean.append(np.mean(distances))
+            score_std.append(np.std(distances))
+            score_max.append(np.max(distances))
+            score_min.append(np.min(distances))
+            score_length.append(len(distances))
+        candidates_session_aids.at[target_index, "score_mean"] = score_mean
+        candidates_session_aids.at[target_index, "score_std"] = score_std
+        candidates_session_aids.at[target_index, "score_max"] = score_max
+        candidates_session_aids.at[target_index, "score_min"] = score_min
+        candidates_session_aids.at[target_index, "score_length"] = score_length
+    return candidates_session_aids
 
 
 def main(output_dir):
-    session_aids = read_test_interactions()
     embeddings = read_item_embeddings()
-    session_embeddings = {}
-    for session in tqdm(session_aids.index.tolist()):
-        session_embeddings[session] = torch.concat([torch.tensor(embeddings[i]) for i in list(dict.fromkeys(session_aids[session][::-1]))[:5]]).reshape(-1, CFG.embedding_size).mean(axis=0).tolist()
-    dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
-    print("session_embeddings created")
-    candidates = read_ranker_test_dataset()
-    candidate_aids = candidates["aid"].values.tolist()
-    filtered_embeddings = {}
-    for aid in candidate_aids:
-        filtered_embeddings[aid] = embeddings[aid]
-    print(f"aid size: {len(embeddings)} -> {len(filtered_embeddings)}")
-    # session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl"), "rb"))
-    embeddings_tensor = torch.tensor([*filtered_embeddings.values()])
-    dump_pickle(os.path.join(output_dir, "embeddings_keys.pkl"), [*filtered_embeddings.keys()])
-    session_embeddings_tensor = torch.tensor([*session_embeddings.values()])
-    del embeddings, session_embeddings
+    index = AnnoyIndex(16, "angular")
+    for aid in embeddings.keys():
+        index.add_item(aid, embeddings[aid])
+    index.build(100)
+    print("AnnoyIndex build")
+    del embeddings
     gc.collect()
-    print("cosine_similarity start")
-    sim = cosine_similarity(embeddings_tensor, session_embeddings_tensor)
-    dump_pickle(os.path.join(output_dir, "sims.pkl"), sim)
-    # batch_size = 50
-    # sims_dir = os.path.join(output_dir, "sims")
-    # os.makedirs(sims_dir, exist_ok=True)
-    # for i in tqdm(range(math.ceil(len(embeddings_tensor) / batch_size))):
-    #     sim = cosine_similarity(embeddings_tensor[i * batch_size:(i + 1) * batch_size], session_embeddings_tensor)
-    #     dump_pickle(os.path.join(sims_dir, f"sims{i}.pkl"), sim)
-    #     del sim
-    #     gc.collect()
+    calc_test_score(index, output_dir)
+    calc_train_score(index, output_dir)
 
 
 if __name__ == "__main__":
-    output_dir = "output/lightfm_sim"
+    output_dir = "output/lightfm_score"
     os.makedirs(output_dir, exist_ok=True)
-    main(output_dir=output_dir)
+    main(output_dir)
