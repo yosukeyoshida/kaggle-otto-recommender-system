@@ -117,8 +117,6 @@ def main(output_dir):
     for aid in candidate_aids:
         filtered_embeddings[aid] = embeddings[aid]
     print(f"aid size: {len(embeddings)} -> {len(filtered_embeddings)}")
-    del embeddings
-    gc.collect()
     # session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl"), "rb"))
     embeddings_tensor = torch.tensor([*filtered_embeddings.values()])
     dump_pickle(os.path.join(output_dir, "embeddings_keys.pkl"), [*filtered_embeddings.keys()])
