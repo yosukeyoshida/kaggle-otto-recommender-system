@@ -110,12 +110,14 @@ def main(output_dir):
     for session in tqdm(session_aids.index.tolist()):
         session_embeddings[session] = torch.concat([torch.tensor(embeddings[i]) for i in set(session_aids[session])]).reshape(-1, CFG.embedding_size).mean(axis=0).tolist()
     dump_pickle(os.path.join(output_dir, "session_embeddings.pkl"), session_embeddings)
+    print("session_embeddings created")
     # session_embeddings = pickle.load(open(os.path.join(output_dir, "session_embeddings.pkl"), "rb"))
     embeddings_tensor = torch.tensor([*embeddings.values()])
     dump_pickle(os.path.join(output_dir, "embeddings_keys.pkl"), [*embeddings.keys()])
     session_embeddings_tensor = torch.tensor([*session_embeddings.values()])
     del embeddings, session_embeddings
     gc.collect()
+    print("cosine_similarity start")
     sim = cosine_similarity(embeddings_tensor, session_embeddings_tensor)
     dump_pickle(os.path.join(output_dir, "sims.pkl"), sim)
     # batch_size = 50
