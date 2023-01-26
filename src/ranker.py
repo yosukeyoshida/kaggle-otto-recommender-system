@@ -205,7 +205,7 @@ def read_train_labels():
 
 
 def read_train_scores(type):
-    df = pd.read_parquet(f"./input/lightfm_score/train_score_{type}.parquet")
+    df = pd.read_parquet(f"./input/lightfm_score/glowing-festival-764/train_score_{type}.parquet")
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
