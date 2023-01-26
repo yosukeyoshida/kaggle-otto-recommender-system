@@ -16,7 +16,7 @@ from util import calc_metrics, dump_pickle
 class CFG:
     wandb = True
     cv_only = False
-    candidate_num = 30
+    candidate_num = 20
     num_epochs = 10
     lr = 0.1
 
@@ -123,7 +123,7 @@ def main(cv, output_dir):
     for i, v in enumerate(embeddings):
         index.add_item(i, v)
 
-    index.build(100)
+    index.build(50)
     test = pl.read_parquet(test_file_path)
     test_session_AIDs = test.to_pandas().reset_index(drop=True).groupby("session")["aid"].apply(list)
     dump_pickle(os.path.join(output_dir, "test_session_AIDs.pkl"), test_session_AIDs)
