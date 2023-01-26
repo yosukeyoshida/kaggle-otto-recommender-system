@@ -10,7 +10,7 @@ import polars as pl
 import os
 
 class CFG:
-    input_train_dir = "20230121"
+    input_train_dir = "20230127"
     input_test_dir = "20230121"
     embedding_size = 16
     wandb = True
