@@ -15,7 +15,7 @@ from wandb.lightgbm import wandb_callback
 class CFG:
     wandb = True
     num_iterations = 2000
-    cv_only = False
+    cv_only = True
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
@@ -475,7 +475,7 @@ def run_inference(output_dir, single_fold, remove_aid):
 def main(single_fold, remove_aid):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/order_rank_daily")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/lightfm")
         wandb.log({"objective": CFG.objective})
         run_name = wandb.run.name
     if run_name is not None:
