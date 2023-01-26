@@ -1,4 +1,5 @@
 from annoy import AnnoyIndex
+import argparse
 import wandb
 from tqdm import tqdm
 import pickle
@@ -124,10 +125,10 @@ def scoring(candidates_session_aids, session_aids, index):
     return candidates_session_aids
 
 
-def main():
+def main(type):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="scoring")
+        wandb.init(project="kaggle-otto", job_type="scoring", group=type)
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lightfm_score", run_name)
@@ -143,9 +144,14 @@ def main():
     print("AnnoyIndex build")
     del embeddings
     gc.collect()
-    calc_test_score(index, output_dir)
-    calc_train_score(index, output_dir)
+    if type == "train":
+        calc_train_score(index, output_dir)
+    else:
+        calc_test_score(index, output_dir)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--type", type=str)
+    args = parser.parse_args()
+    main(args.type)
