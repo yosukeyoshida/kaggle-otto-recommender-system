@@ -1,4 +1,5 @@
 from annoy import AnnoyIndex
+import wandb
 from tqdm import tqdm
 import pickle
 import gc
@@ -10,6 +11,7 @@ class CFG:
     input_train_dir = "20230121"
     input_test_dir = "20230121"
     embedding_size = 16
+    wandb = True
 
 
 def read_ranker_train_dataset(type):
@@ -92,7 +94,10 @@ def calc_test_score(index, output_dir):
 
 
 def scoring(candidates_session_aids, session_aids, index):
-    for session in tqdm(candidates_session_aids["session"].values):
+    total_iter = candidates_session_aids["session"].values
+    for i, session in enumerate(candidates_session_aids["session"].values):
+        if i % 100000:
+            print(f"{i}/{total_iter}")
         target_indices = candidates_session_aids.loc[candidates_session_aids["session"] == session].index.values
         assert len(target_indices) == 1
         target_index = target_indices[0]
@@ -119,7 +124,17 @@ def scoring(candidates_session_aids, session_aids, index):
     return candidates_session_aids
 
 
-def main(output_dir):
+def main():
+    run_name = None
+    if CFG.wandb:
+        wandb.init(project="kaggle-otto", job_type="scoring")
+        run_name = wandb.run.name
+    if run_name is not None:
+        output_dir = os.path.join("output/lightfm_score", run_name)
+    else:
+        output_dir = "output/lightfm_score"
+    os.makedirs(output_dir, exist_ok=True)
+
     embeddings = read_item_embeddings()
     index = AnnoyIndex(16, "angular")
     for aid in embeddings.keys():
@@ -133,6 +148,4 @@ def main(output_dir):
 
 
 if __name__ == "__main__":
-    output_dir = "output/lightfm_score"
-    os.makedirs(output_dir, exist_ok=True)
-    main(output_dir)
+    main()
