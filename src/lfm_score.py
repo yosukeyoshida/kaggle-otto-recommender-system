@@ -1,4 +1,5 @@
 from annoy import AnnoyIndex
+import math
 import argparse
 import wandb
 from tqdm import tqdm
@@ -18,26 +19,38 @@ class CFG:
 def read_ranker_train_dataset(type):
     path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
+    for c in ["session", "aid"]:
+        df[c] = df[c].astype("int32")
     return df
 
 
 def read_ranker_test_dataset():
     path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
+    for c in ["session", "aid"]:
+        df[c] = df[c].astype("int32")
     return df
 
 
 def read_test_interactions():
     path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
+    for c in ["session", "aid"]:
+        df[c] = df[c].astype("int32")
     session_aids = df.groupby("session")["aid"].apply(list)
+    del df
+    gc.collect()
     return session_aids
 
 
 def read_train_interactions():
     path = "./input/otto-validation/test_parquet/*"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
+    for c in ["session", "aid"]:
+        df[c] = df[c].astype("int32")
     session_aids = df.groupby("session")["aid"].apply(list)
+    del df
+    gc.collect()
     return session_aids
 
 
@@ -88,9 +101,11 @@ def calc_test_score(index, output_dir):
     gc.collect()
 
     candidates_session_aids = scoring(candidates_session_aids, session_aids, index)
+    del session_aids, index
+    gc.collect()
     candidates_session_aids = candidates_session_aids.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
     candidates_session_aids.to_parquet(os.path.join(output_dir, "test_score.parquet"))
-    del candidates_session_aids, session_aids
+    del candidates_session_aids
     gc.collect()
 
 
