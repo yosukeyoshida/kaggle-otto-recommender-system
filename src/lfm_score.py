@@ -66,6 +66,10 @@ def calc_train_score(index, output_dir):
         candidates_session_aids = scoring(candidates_session_aids, session_aids, index)
         candidates_session_aids = candidates_session_aids.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
         candidates_session_aids.to_parquet(os.path.join(output_dir, f"train_score_{t}.parquet"))
+        del candidates_session_aids
+        gc.collect()
+    del session_aids
+    gc.collect()
 
 
 def calc_test_score(index, output_dir):
@@ -83,6 +87,8 @@ def calc_test_score(index, output_dir):
     candidates_session_aids = scoring(candidates_session_aids, session_aids, index)
     candidates_session_aids = candidates_session_aids.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
     candidates_session_aids.to_parquet(os.path.join(output_dir, "test_score.parquet"))
+    del candidates_session_aids, session_aids
+    gc.collect()
 
 
 def scoring(candidates_session_aids, session_aids, index):
