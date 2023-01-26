@@ -97,7 +97,7 @@ def calc_test_score(index, output_dir):
 def scoring(candidates_session_aids, session_aids, index):
     total_iter = len(candidates_session_aids["session"].values)
     for i, session in enumerate(candidates_session_aids["session"].values):
-        if i % 100000:
+        if i % 100000 == 0:
             print(f"{i}/{total_iter}")
         target_indices = candidates_session_aids.loc[candidates_session_aids["session"] == session].index.values
         assert len(target_indices) == 1
