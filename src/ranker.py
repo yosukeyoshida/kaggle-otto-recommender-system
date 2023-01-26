@@ -1,4 +1,5 @@
 import argparse
+import polars as pl
 import math
 import gc
 import glob
@@ -21,6 +22,8 @@ class CFG:
     chunk_session_split_size = 20
     input_train_dir = "20230121"
     input_test_dir = "20230121"
+    input_train_score_dir = "glowing-festival-764"
+    input_test_score_dir = "flashing-orchid-776"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
@@ -205,7 +208,7 @@ def read_train_labels():
 
 
 def read_train_scores(type):
-    df = pd.read_parquet(f"./input/lightfm_score/glowing-festival-764/train_score_{type}.parquet")
+    df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/train_score_{type}.parquet")
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
@@ -214,7 +217,7 @@ def read_train_scores(type):
 
 
 def read_test_scores():
-    df = pd.read_parquet("./input/lightfm_score/test_score.parquet")
+    df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_test_score_dir}/*").to_pandas()
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")

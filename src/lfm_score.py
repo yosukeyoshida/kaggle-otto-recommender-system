@@ -14,6 +14,7 @@ class CFG:
     input_test_dir = "20230121"
     embedding_size = 16
     wandb = True
+    chunk_size = 5
 
 
 def read_ranker_train_dataset(type):
@@ -100,13 +101,16 @@ def calc_test_score(index, output_dir):
     del candidates
     gc.collect()
 
-    candidates_session_aids = scoring(candidates_session_aids, session_aids, index)
-    del session_aids, index
-    gc.collect()
-    candidates_session_aids = candidates_session_aids.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
-    candidates_session_aids.to_parquet(os.path.join(output_dir, "test_score.parquet"))
-    del candidates_session_aids
-    gc.collect()
+    batch_size = math.ceil(len(candidates_session_aids) / CFG.chunk_size)
+
+    for i in range(CFG.chunk_size):
+        print(f"i={i}")
+        tmp = candidates_session_aids.loc[i*batch_size:(i+1)*batch_size]
+        tmp = scoring(tmp, session_aids, index)
+        tmp = tmp.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
+        tmp.to_parquet(os.path.join(output_dir, f"test_score{i}.parquet"))
+        del tmp
+        gc.collect()
 
 
 def scoring(candidates_session_aids, session_aids, index):
