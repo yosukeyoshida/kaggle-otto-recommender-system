@@ -1,10 +1,12 @@
 import argparse
-from catboost import CatBoostRanker, Pool
+from catboost import CatBoostClassifier, Pool
+import polars as pl
 import math
 import gc
 import glob
 import os
 import pickle
+
 import pandas as pd
 import wandb
 from sklearn.model_selection import GroupKFold
@@ -12,14 +14,15 @@ from sklearn.model_selection import GroupKFold
 
 class CFG:
     wandb = True
-    num_iterations = 5000
+    num_iterations = 2000
     cv_only = False
-    save_score = False
+    n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
-    n_folds = 5
-    input_train_dir = "20230116"
-    input_test_dir = "20230116"
+    input_train_dir = "20230121"
+    input_test_dir = "20230121"
+    input_train_score_dir = "glowing-festival-764"
+    input_test_score_dir = "flashing-orchid-776"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -47,7 +50,6 @@ class CFG:
         "clicks_rank_day5": "int32",
         "clicks_rank_day6": "int32",
         "clicks_rank_day7": "int32",
-        "clicks_rank_day8": "int32",
         "carts_rank_day1": "int32",
         "carts_rank_day2": "int32",
         "carts_rank_day3": "int32",
@@ -55,7 +57,6 @@ class CFG:
         "carts_rank_day5": "int32",
         "carts_rank_day6": "int32",
         "carts_rank_day7": "int32",
-        "carts_rank_day8": "int32",
         "orders_rank_day1": "int32",
         "orders_rank_day2": "int32",
         "orders_rank_day3": "int32",
@@ -63,7 +64,48 @@ class CFG:
         "orders_rank_day5": "int32",
         "orders_rank_day6": "int32",
         "orders_rank_day7": "int32",
-        "orders_rank_day8": "int32",
+        "session_clicks_cnt_day1": "int32",
+        "session_clicks_cnt_day2": "int32",
+        "session_clicks_cnt_day3": "int32",
+        "session_clicks_cnt_day4": "int32",
+        "session_clicks_cnt_day5": "int32",
+        "session_clicks_cnt_day6": "int32",
+        "session_clicks_cnt_day7": "int32",
+        "session_carts_cnt_day1": "int32",
+        "session_carts_cnt_day2": "int32",
+        "session_carts_cnt_day3": "int32",
+        "session_carts_cnt_day4": "int32",
+        "session_carts_cnt_day5": "int32",
+        "session_carts_cnt_day6": "int32",
+        "session_carts_cnt_day7": "int32",
+        "session_orders_cnt_day1": "int32",
+        "session_orders_cnt_day2": "int32",
+        "session_orders_cnt_day3": "int32",
+        "session_orders_cnt_day4": "int32",
+        "session_orders_cnt_day5": "int32",
+        "session_orders_cnt_day6": "int32",
+        "session_orders_cnt_day7": "int32",
+        "session_aid_clicks_cnt_day1": "int32",
+        "session_aid_clicks_cnt_day2": "int32",
+        "session_aid_clicks_cnt_day3": "int32",
+        "session_aid_clicks_cnt_day4": "int32",
+        "session_aid_clicks_cnt_day5": "int32",
+        "session_aid_clicks_cnt_day6": "int32",
+        "session_aid_clicks_cnt_day7": "int32",
+        "session_aid_carts_cnt_day1": "int32",
+        "session_aid_carts_cnt_day2": "int32",
+        "session_aid_carts_cnt_day3": "int32",
+        "session_aid_carts_cnt_day4": "int32",
+        "session_aid_carts_cnt_day5": "int32",
+        "session_aid_carts_cnt_day6": "int32",
+        "session_aid_carts_cnt_day7": "int32",
+        "session_aid_orders_cnt_day1": "int32",
+        "session_aid_orders_cnt_day2": "int32",
+        "session_aid_orders_cnt_day3": "int32",
+        "session_aid_orders_cnt_day4": "int32",
+        "session_aid_orders_cnt_day5": "int32",
+        "session_aid_orders_cnt_day6": "int32",
+        "session_aid_orders_cnt_day7": "int32",
     }
     float_cols = [
         "avg_action_num_reverse_chrono",
@@ -148,7 +190,7 @@ def read_files(path):
         for col, dtype in CFG.dtypes.items():
             df[col] = df[col].astype(dtype)
         for col in CFG.float_cols:
-            df[col] = df[col].astype("float16")
+            df[col] = df[col].astype("float32")
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
 
@@ -163,9 +205,64 @@ def read_train_labels():
     return train_labels
 
 
+def read_train_scores(type):
+    df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/train_score_{type}.parquet")
+    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        df[c] = df[c].astype("float32")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    return df
+
+
+def read_test_scores():
+    df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_test_score_dir}/*").to_pandas()
+    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        df[c] = df[c].astype("float32")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    return df
+
+
 def dump_pickle(path, o):
     with open(path, "wb") as f:
         pickle.dump(o, f)
+
+
+def create_kfold(type, n_folds=5):
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*.parquet"
+    files = glob.glob(path)
+    chunk_size = math.ceil(len(files) / 3)
+    files_list = split_list(files, chunk_size)
+    train_list = []
+    for i, files in enumerate(files_list):
+        print(f"chunk{i}")
+        dfs = []
+        for file in files:
+            df = pd.read_parquet(file)
+            dfs.append(df)
+        _train = pd.concat(dfs, axis=0, ignore_index=True)
+        del dfs
+        gc.collect()
+        train_list.append(_train)
+    train = pd.concat(train_list, axis=0, ignore_index=True)
+    group = train["session"]
+
+    kf = GroupKFold(n_splits=n_folds)
+    for fold, (train_indices, valid_indices) in enumerate(kf.split(X=train, groups=group)):
+        train.loc[valid_indices, "fold"] = fold
+    output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/{type}"
+    os.makedirs(output_dir, exist_ok=True)
+    train.to_parquet(os.path.join(output_dir, f"train.parquet"))
+
+
+def read_session_embeddings():
+    path = f"./input/lightfm/session_embeddings.pkl"
+    df = pickle.load(open(path, "rb"))
+    embeddings_cols = df.drop(columns=["session"]).columns
+    for col in embeddings_cols:
+        df[col] = df[col].astype("float32")
+    df["session"] = df["session"].astype("int32")
+    return df
 
 
 def run_train(type, output_dir, single_fold):
@@ -173,7 +270,9 @@ def run_train(type, output_dir, single_fold):
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
+    train_scores = read_train_scores(type)
+
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/{type}/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -192,72 +291,78 @@ def run_train(type, output_dir, single_fold):
         _train = _train.merge(train_labels, how="left", on=["session", "aid"])
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
+        _train = _train.merge(train_scores, how="left", on=["session", "aid"])
         train_list.append(_train)
     train = pd.concat(train_list, axis=0, ignore_index=True)
     train = train.sample(frac=1, random_state=42, ignore_index=True)
     del train_labels_all
     gc.collect()
 
-    feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
+    # embeddings_df = read_session_embeddings()
+    # print(f"train={train.shape}")
+    # train = train.merge(embeddings_df, on=["session"])
+    # print(f"after merge train={train.shape}")
+
+    feature_cols = train.drop(columns=["gt", "session", "type", "aid", "fold"]).columns.tolist()
     if CFG.wandb:
         wandb.log({f"feature size": len(feature_cols)})
     targets = train["gt"]
-    group = train["session"]
-    train = train[feature_cols + ["session"]]
+    train = train[feature_cols + ["session", "aid", "fold"]]
     print(f"train shape: {train.shape}")
 
     train_labels = train_labels.groupby("session")["aid"].apply(list).to_frame()
     train_labels = train_labels.rename(columns={"aid": "ground_truth"})
 
     dfs = []
-    kf = GroupKFold(n_splits=CFG.n_folds)
-    for fold, (train_indices, valid_indices) in enumerate(kf.split(train, targets, group)):
-        X_train, X_valid = train.loc[train_indices], train.loc[valid_indices]
-        y_train, y_valid = targets.loc[train_indices], targets.loc[valid_indices]
+    for fold in range(CFG.n_folds):
+        X_train = train[train["fold"] != fold]
+        X_valid = train[train["fold"] == fold]
+        y_train = targets[X_train.index]
+        y_valid = targets[X_valid.index]
 
         X_train = X_train.sort_values(["session", "aid"])
         y_train = y_train.loc[X_train.index]
         X_valid = X_valid.sort_values(["session", "aid"])
         y_valid = y_valid.loc[X_valid.index]
 
-        group_id_train = X_train["session"]
-        group_id_valid = X_valid["session"]
-
         X_train = X_train[feature_cols]
 
         params = {
             'iterations': CFG.num_iterations,
-            'custom_metric': ['NDCG:top=20'],
             'random_seed': 42,
-            "has_time": True,
             'early_stopping_rounds': 100,
             "use_best_model": True,
-            # "task_type": "GPU",
+            "task_type": "GPU",
         }
         _train = Pool(
             data=X_train,
             label=y_train,
-            group_id=group_id_train
         )
         _valid = Pool(
             data=X_valid[feature_cols],
             label=y_valid,
-            group_id=group_id_valid
         )
         del X_train, y_train, y_valid
         gc.collect()
+
         print("train start")
-        ranker = CatBoostRanker(**params)
+        ranker = CatBoostClassifier(**params)
         ranker.fit(_train, eval_set=_valid, use_best_model=True)
         print("train end")
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.get_best_iteration()})
         dump_pickle(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), ranker)
-        X_valid = X_valid.sort_values(["session", "aid"])
+        X_valid = X_valid.sort_values(["session", "aid"], ignore_index=True)
         scores = ranker.predict(X_valid[feature_cols])
         del ranker
         gc.collect()
         X_valid["score"] = scores
+        chunk_size = 10
+        batch_size = math.ceil(len(X_valid) / chunk_size)
+        preds_dir = os.path.join(output_dir, "preds", "validation")
+        os.makedirs(preds_dir, exist_ok=True)
+        for i in range(chunk_size):
+            X_valid.loc[i*batch_size:(i+1)*batch_size].to_parquet(os.path.join(preds_dir, f"preds{i}.parquet"))
         X_valid = X_valid.sort_values(["session", "score"]).groupby("session").tail(20)
         X_valid = X_valid.groupby("session")["aid"].apply(list).to_frame()
         joined = X_valid.merge(train_labels, how="left", on=["session"])
@@ -283,7 +388,7 @@ def cast_cols(df):
     for col, dtype in CFG.dtypes.items():
         df[col] = df[col].astype(dtype)
     for col in CFG.float_cols:
-        df[col] = df[col].astype("float16")
+        df[col] = df[col].astype("float32")
     return df
 
 
@@ -298,6 +403,8 @@ def run_inference(output_dir, single_fold):
     preds = []
     chunk_size = math.ceil(len(files) / CFG.chunk_split_size)
     files_list = split_list(files, chunk_size)
+    # embeddings_df = read_session_embeddings()
+    test_scores = read_test_scores()
     for files in files_list:
         dfs = []
         for file in files:
@@ -307,7 +414,9 @@ def run_inference(output_dir, single_fold):
         test = pd.concat(dfs)
         del dfs
         gc.collect()
-        feature_cols = test.drop(columns=["session"]).columns.tolist()
+        # test = test.merge(embeddings_df, on=["session"])
+        test = test.merge(test_scores, how="left", on=["session", "aid"])
+        feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
             print(f"type={type}")
             pred_folds = []
@@ -316,7 +425,7 @@ def run_inference(output_dir, single_fold):
                 ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), "rb"))
                 pred = test[["session", "aid"]]
                 pred["score"] = ranker.predict(test[feature_cols])
-                pred["score"] = pred["score"].astype("float16")
+                pred["score"] = pred["score"].astype("float32")
                 pred["type"] = type
                 pred_folds.append(pred)
                 del pred, ranker
@@ -329,27 +438,31 @@ def run_inference(output_dir, single_fold):
                     pred["score"] += pf["score"]
                 pred["score"] = pred["score"] / CFG.n_folds
             preds.append(pred)
-            del pred_folds
+            del pred_folds, pred
             gc.collect()
         del test
         gc.collect()
     preds = pd.concat(preds)
 
-    if CFG.save_score:
-        sessions = sorted(preds["session"].unique())
-        chunk_size = math.ceil(len(sessions) / CFG.chunk_session_split_size)
-        sessions_list = split_list(sessions, chunk_size)
-        preds_save_dir = os.path.join(output_dir, "preds")
-        os.makedirs(preds_save_dir, exist_ok=True)
-        for i, sessions in enumerate(sessions_list):
-            _preds = preds[preds["session"].isin(sessions)]
-            dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
-            del _preds
-            gc.collect()
-    else:
-        dfs = []
+    sessions = sorted(preds["session"].unique())
+    chunk_size = math.ceil(len(sessions) / CFG.chunk_session_split_size)
+    sessions_list = split_list(sessions, chunk_size)
+    preds_save_dir = os.path.join(output_dir, "preds")
+    os.makedirs(preds_save_dir, exist_ok=True)
+    for i, sessions in enumerate(sessions_list):
+        _preds = preds[preds["session"].isin(sessions)]
+        dump_pickle(os.path.join(preds_save_dir, f"preds_{i}.pkl"), _preds)
+        del _preds
+        gc.collect()
+    del preds
+    gc.collect()
+
+    dfs = []
+    for i in range(CFG.chunk_split_size):
+        file = os.path.join(preds_save_dir, f"preds_{i}.pkl")
+        print(file)
+        preds = pickle.load(open(file, "rb"))
         for type in ["clicks", "carts", "orders"]:
-            print(type)
             _preds = preds[preds["type"] == type]
             _preds = _preds.sort_values(["session", "score"]).groupby("session").tail(20)
             _preds = _preds.groupby("session")["aid"].apply(list)
@@ -358,20 +471,22 @@ def run_inference(output_dir, single_fold):
             dfs.append(_preds)
             del _preds
             gc.collect()
-        sub = pd.concat(dfs)
-        sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
-        sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
+        del preds
+        gc.collect()
+    sub = pd.concat(dfs)
+    sub["labels"] = sub["aid"].apply(lambda x: " ".join(map(str, x)))
+    sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
 def main(single_fold):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="catboost", group="feature/save_score")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/lightfm")
         run_name = wandb.run.name
     if run_name is not None:
-        output_dir = os.path.join("output/catboost", run_name)
+        output_dir = os.path.join("output/lgbm", run_name)
     else:
-        output_dir = "output/catboost"
+        output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
     clicks_recall = run_train("clicks", output_dir, single_fold)
@@ -386,6 +501,9 @@ def main(single_fold):
 
 
 if __name__ == "__main__":
+    # for type in ["clicks", "carts", "orders"]:
+    #     print(type)
+    #     create_kfold(type)
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
