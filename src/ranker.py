@@ -372,7 +372,7 @@ def run_train(type, output_dir, single_fold):
         if CFG.boosting_type == "gbdt":
             ranker = lgb.train(params, _train, valid_sets=[_train, _valid], feval=lgb_numba_recall, callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(100)])
         else:  # dart
-            ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir), lgb.log_evaluation(100)])
+            ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
 
         if CFG.boosting_type == "dart":
