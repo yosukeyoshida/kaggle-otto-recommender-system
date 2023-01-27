@@ -1,4 +1,5 @@
 import argparse
+import polars as pl
 import math
 import gc
 import glob
@@ -21,6 +22,8 @@ class CFG:
     chunk_session_split_size = 20
     input_train_dir = "20230121"
     input_test_dir = "20230121"
+    input_train_score_dir = "glowing-festival-764"
+    input_test_score_dir = "flashing-orchid-776"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
@@ -204,15 +207,45 @@ def read_train_labels():
     return train_labels
 
 
+def read_train_scores(type):
+    df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/train_score_{type}.parquet")
+    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    return df
+
+
+def read_test_scores():
+    df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_test_score_dir}/*").to_pandas()
+    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    return df
+
+
 def dump_pickle(path, o):
     with open(path, "wb") as f:
         pickle.dump(o, f)
+
+
+def read_session_embeddings():
+    path = f"./input/lightfm/session_embeddings.pkl"
+    df = pickle.load(open(path, "rb"))
+    embeddings_cols = df.drop(columns=["session"]).columns
+    for col in embeddings_cols:
+        df[col] = df[col].astype("float16")
+    df["session"] = df["session"].astype("int32")
+    return df
 
 
 def run_train(type, output_dir, single_fold, remove_aid):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
+
+    train_scores = read_train_scores(type)
 
     path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
     files = glob.glob(path)
@@ -233,11 +266,17 @@ def run_train(type, output_dir, single_fold, remove_aid):
         _train = _train.merge(train_labels, how="left", on=["session", "aid"])
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
+        _train = _train.merge(train_scores, how="left", on=["session", "aid"])
         train_list.append(_train)
     train = pd.concat(train_list, axis=0, ignore_index=True)
     train = train.sample(frac=1, random_state=42, ignore_index=True)
     del train_labels_all
     gc.collect()
+
+    # embeddings_df = read_session_embeddings()
+    # print(f"train={train.shape}")
+    # train = train.merge(embeddings_df, on=["session"])
+    # print(f"after merge train={train.shape}")
 
     if remove_aid:
         feature_cols = train.drop(columns=["gt", "session", "type", "aid"]).columns.tolist()
@@ -358,6 +397,8 @@ def run_inference(output_dir, single_fold, remove_aid):
     preds = []
     chunk_size = math.ceil(len(files) / CFG.chunk_split_size)
     files_list = split_list(files, chunk_size)
+    # embeddings_df = read_session_embeddings()
+    test_scores = read_test_scores()
     for files in files_list:
         dfs = []
         for file in files:
@@ -367,6 +408,8 @@ def run_inference(output_dir, single_fold, remove_aid):
         test = pd.concat(dfs)
         del dfs
         gc.collect()
+        # test = test.merge(embeddings_df, on=["session"])
+        test = test.merge(test_scores, how="left", on=["session", "aid"])
         if remove_aid:
             feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
         else:
@@ -435,7 +478,7 @@ def run_inference(output_dir, single_fold, remove_aid):
 def main(single_fold, remove_aid):
     run_name = None
     if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/order_rank_daily")
+        wandb.init(project="kaggle-otto", job_type="ranker", group="feature/lightfm")
         wandb.log({"objective": CFG.objective})
         run_name = wandb.run.name
     if run_name is not None:
