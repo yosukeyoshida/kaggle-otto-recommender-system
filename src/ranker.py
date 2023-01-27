@@ -14,7 +14,7 @@ from wandb.lightgbm import wandb_callback
 
 
 class CFG:
-    wandb = True
+    wandb = False
     num_iterations = 2000
     cv_only = True
     n_folds = 5
@@ -191,7 +191,7 @@ def read_files(path):
         for col, dtype in CFG.dtypes.items():
             df[col] = df[col].astype(dtype)
         for col in CFG.float_cols:
-            df[col] = df[col].astype("float16")
+            df[col] = df[col].astype("float32")
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
 
@@ -209,7 +209,7 @@ def read_train_labels():
 def read_train_scores(type):
     df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/train_score_{type}.parquet")
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
-        df[c] = df[c].astype("float16")
+        df[c] = df[c].astype("float32")
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
     return df
@@ -218,7 +218,7 @@ def read_train_scores(type):
 def read_test_scores():
     df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_test_score_dir}/*").to_pandas()
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
-        df[c] = df[c].astype("float16")
+        df[c] = df[c].astype("float32")
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
     return df
@@ -261,7 +261,7 @@ def read_session_embeddings():
     df = pickle.load(open(path, "rb"))
     embeddings_cols = df.drop(columns=["session"]).columns
     for col in embeddings_cols:
-        df[col] = df[col].astype("float16")
+        df[col] = df[col].astype("float32")
     df["session"] = df["session"].astype("int32")
     return df
 
@@ -342,7 +342,10 @@ def run_train(type, output_dir, single_fold):
         gc.collect()
 
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
+        callbacks = [lgb.early_stopping(stopping_rounds=50, verbose=True)]
+        if CFG.wandb:
+            callbacks.append(wandb_callback())
+        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=callbacks)
         print("train end")
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
@@ -383,7 +386,7 @@ def cast_cols(df):
     for col, dtype in CFG.dtypes.items():
         df[col] = df[col].astype(dtype)
     for col in CFG.float_cols:
-        df[col] = df[col].astype("float16")
+        df[col] = df[col].astype("float32")
     return df
 
 
@@ -420,7 +423,7 @@ def run_inference(output_dir, single_fold):
                 ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), "rb"))
                 pred = test[["session", "aid"]]
                 pred["score"] = ranker.predict(test[feature_cols])
-                pred["score"] = pred["score"].astype("float16")
+                pred["score"] = pred["score"].astype("float32")
                 pred["type"] = type
                 pred_folds.append(pred)
                 del pred, ranker
