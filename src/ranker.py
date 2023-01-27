@@ -17,7 +17,7 @@ from wandb.lightgbm import wandb_callback
 
 class CFG:
     wandb = True
-    num_iterations = 2000
+    num_iterations = 5000
     cv_only = True
     n_folds = 5
     chunk_split_size = 20
@@ -345,7 +345,7 @@ def run_train(type, output_dir, single_fold):
                 "objective": "lambdarank",
                 # "metric": "ndcg",
                 "metric": '"None"',
-                "boosting_type": "gbdt",
+                "boosting_type": "dart",
                 # 'ndcg_eval_at': [20],
                 "num_iterations": CFG.num_iterations,
                 "random_state": 42,
