@@ -24,7 +24,6 @@ class CFG:
     input_test_dir = "20230121"
     input_train_score_dir = "glowing-festival-764"
     input_test_score_dir = "flashing-orchid-776"
-    objective = "lambdarank"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -328,55 +327,23 @@ def run_train(type, output_dir, single_fold):
         y_valid = y_valid.loc[X_valid.index]
 
         X_train = X_train[feature_cols]
-        # X_valid = X_valid[feature_cols]
 
-        if CFG.objective == "lambdarank":
-            params = {
-                "objective": "lambdarank",
-                "metric": "ndcg",
-                "boosting_type": "gbdt",
-                'ndcg_eval_at': [20],
-                "num_iterations": CFG.num_iterations,
-                "random_state": 42,
-                # 'lambdarank_truncation_level': 10,
-                # "bagging_fraction": 0.5,
-                # "bagging_freq": 10,
-            }
-        elif CFG.objective == "binary":
-            params = {
-                "objective": "binary",
-                "metric": "auc",
-                "boosting_type": "gbdt",
-                "num_iterations": CFG.num_iterations,
-                "random_state": 42,
-            }
+        params = {
+            "objective": "binary",
+            "metric": "auc",
+            "boosting_type": "gbdt",
+            "num_iterations": CFG.num_iterations,
+            "random_state": 42,
+        }
 
-        if CFG.objective == "lambdarank":
-            session_length = X_train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-            session_lengths_train = session_length["session_length"].values
-
-            session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-            session_lengths_valid = session_length["session_length"].values
-            del session_length
-            gc.collect()
-
-            _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
-            _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
-            del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
-            gc.collect()
-        else:
-            _train = lgb.Dataset(X_train, y_train)
-            _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train)
-            del X_train, y_train, y_valid
-            gc.collect()
+        _train = lgb.Dataset(X_train, y_train)
+        _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train)
+        del X_train, y_train, y_valid
+        gc.collect()
 
         print("train start")
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
-        # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
-        # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
-        # ranker = lgb.Booster(model_file=f"{output_dir}/lgb_fold{fold}")
-        # log_summary(ranker, save_model_checkpoint=True)
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
         dump_pickle(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), ranker)
@@ -510,7 +477,6 @@ def main(single_fold):
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="ranker", group="feature/lightfm")
-        wandb.log({"objective": CFG.objective})
         run_name = wandb.run.name
     if run_name is not None:
         output_dir = os.path.join("output/lgbm", run_name)
@@ -535,7 +501,5 @@ if __name__ == "__main__":
     #     create_kfold(type)
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_fold", action="store_true")
-    parser.add_argument("--objective", type=str, default="lambdarank")
     args = parser.parse_args()
-    CFG.objective = args.objective
     main(args.single_fold)
