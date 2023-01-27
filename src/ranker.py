@@ -5,6 +5,8 @@ import gc
 import glob
 import os
 import pickle
+from numba import njit
+import numpy as np
 
 import lightgbm as lgb
 import pandas as pd
@@ -16,7 +18,7 @@ from wandb.lightgbm import wandb_callback
 class CFG:
     wandb = True
     num_iterations = 2000
-    cv_only = False
+    cv_only = True
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
@@ -184,6 +186,33 @@ def save_model(i, type, save_model_dir):
     return callback
 
 
+@njit() # the only difference from previous version
+def numba_recall20(preds, targets, groups):
+    total = 0
+    nonempty = 0
+    group_starts = np.cumsum(groups)
+
+    for group_id in range(len(groups)):
+        group_end = group_starts[group_id]
+        group_start = group_end - groups[group_id]
+        ranks = np.argsort(preds[group_start:group_end])[::-1]
+        hits = 0
+        for i in range(min(len(ranks), 20)):
+            hits += targets[group_start + ranks[i]]
+
+        actual = min(20, targets[group_start:group_end].sum())
+        if actual > 0:
+            total += hits / actual
+            nonempty += 1
+
+    return total / nonempty
+
+
+def lgb_numba_recall(preds, lgb_dataset):
+    metric = numba_recall20(preds, lgb_dataset.label, lgb_dataset.group)
+    return 'numba_recall@20', metric, True
+
+
 def read_files(path):
     dfs = []
 
@@ -314,11 +343,13 @@ def run_train(type, output_dir, single_fold):
         if CFG.objective == "lambdarank":
             params = {
                 "objective": "lambdarank",
-                "metric": "ndcg",
+                # "metric": "ndcg",
+                "metric": '"None"',
                 "boosting_type": "gbdt",
-                'ndcg_eval_at': [20],
+                # 'ndcg_eval_at': [20],
                 "num_iterations": CFG.num_iterations,
                 "random_state": 42,
+                "learning_rate": 0.03,
                 # 'lambdarank_truncation_level': 10,
                 # "bagging_fraction": 0.5,
                 # "bagging_freq": 10,
@@ -337,7 +368,7 @@ def run_train(type, output_dir, single_fold):
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
+        ranker = lgb.train(params, _train, valid_sets=[_valid], feval=lgb_numba_recall, callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
         # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
         # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
@@ -478,15 +509,15 @@ def main(single_fold):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir, single_fold)
+    # clicks_recall = run_train("clicks", output_dir, single_fold)
     carts_recall = run_train("carts", output_dir, single_fold)
     orders_recall = run_train("orders", output_dir, single_fold)
-    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    if CFG.wandb:
-        wandb.log({"total recall": total_recall})
-    if not CFG.cv_only:
-        run_inference(output_dir, single_fold)
+    # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+    # if CFG.wandb:
+    #     wandb.log({"total recall": total_recall})
+    # if not CFG.cv_only:
+    #     run_inference(output_dir, single_fold)
 
 
 if __name__ == "__main__":
