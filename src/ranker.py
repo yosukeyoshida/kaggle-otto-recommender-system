@@ -175,7 +175,7 @@ def save_model(i, type, save_model_dir):
         global max_score
         global best_iteration
         iteration = env.iteration
-        score = env.evaluation_result_list[0][2]
+        score = env.evaluation_result_list[1][2]
         if iteration % 100 == 0:
             print("iteration {}, score= {:.05f}".format(iteration, score))
         if score > max_score:
@@ -344,10 +344,10 @@ def run_train(type, output_dir, single_fold):
         if CFG.objective == "lambdarank":
             params = {
                 "objective": "lambdarank",
-                # "metric": "ndcg",
-                "metric": '"None"',
-                "boosting_type": "dart",
-                # 'ndcg_eval_at': [20],
+                "metric": "ndcg",
+                # "metric": '"None"',
+                "boosting_type": CFG.boosting_type,
+                'ndcg_eval_at': [20],
                 "num_iterations": CFG.num_iterations,
                 "random_state": 42,
                 "learning_rate": 0.03,
@@ -372,7 +372,7 @@ def run_train(type, output_dir, single_fold):
         if CFG.boosting_type == "gbdt":
             ranker = lgb.train(params, _train, valid_sets=[_train, _valid], feval=lgb_numba_recall, callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(100)])
         else:  # dart
-            ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
+            ranker = lgb.train(params, _train, valid_sets=[_train, _valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir), lgb.log_evaluation(100)])
         print("train end")
 
         if CFG.boosting_type == "dart":
