@@ -16,7 +16,7 @@ from wandb.lightgbm import wandb_callback
 class CFG:
     wandb = True
     num_iterations = 2000
-    cv_only = False
+    cv_only = True
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
@@ -230,6 +230,33 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
+def create_kfold(type, n_folds=5):
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*.parquet"
+    files = glob.glob(path)
+    chunk_size = math.ceil(len(files) / 3)
+    files_list = split_list(files, chunk_size)
+    train_list = []
+    for i, files in enumerate(files_list):
+        print(f"chunk{i}")
+        dfs = []
+        for file in files:
+            df = pd.read_parquet(file)
+            dfs.append(df)
+        _train = pd.concat(dfs, axis=0, ignore_index=True)
+        del dfs
+        gc.collect()
+        train_list.append(_train)
+    train = pd.concat(train_list, axis=0, ignore_index=True)
+    group = train["session"]
+
+    kf = GroupKFold(n_splits=n_folds)
+    for fold, (train_indices, valid_indices) in enumerate(kf.split(X=train, groups=group)):
+        train.loc[valid_indices, "fold"] = fold
+    output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/{type}"
+    os.makedirs(output_dir, exist_ok=True)
+    train.to_parquet(os.path.join(output_dir, f"train.parquet"))
+
+
 def read_session_embeddings():
     path = f"./input/lightfm/session_embeddings.pkl"
     df = pickle.load(open(path, "rb"))
@@ -247,7 +274,7 @@ def run_train(type, output_dir, single_fold):
 
     train_scores = read_train_scores(type)
 
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/{type}/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -282,7 +309,6 @@ def run_train(type, output_dir, single_fold):
     if CFG.wandb:
         wandb.log({f"feature size": len(feature_cols)})
     targets = train["gt"]
-    group = train["session"]
     train = train[feature_cols + ["session", "aid"]]
     print(f"train shape: {train.shape}")
 
@@ -290,23 +316,16 @@ def run_train(type, output_dir, single_fold):
     train_labels = train_labels.rename(columns={"aid": "ground_truth"})
 
     dfs = []
-    kf = GroupKFold(n_splits=CFG.n_folds)
-    for fold, (train_indices, valid_indices) in enumerate(kf.split(train, targets, group)):
-        X_train, X_valid = train.loc[train_indices], train.loc[valid_indices]
-        y_train, y_valid = targets.loc[train_indices], targets.loc[valid_indices]
+    for fold in range(CFG.n_folds):
+        X_train = train[train["fold"] != fold]
+        X_valid = train[train["fold"] == fold]
+        y_train = targets[X_train.index]
+        y_valid = targets[X_valid.index]
 
         X_train = X_train.sort_values(["session", "aid"])
         y_train = y_train.loc[X_train.index]
         X_valid = X_valid.sort_values(["session", "aid"])
         y_valid = y_valid.loc[X_valid.index]
-
-        session_length = X_train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-        session_lengths_train = session_length["session_length"].values
-
-        session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
-        session_lengths_valid = session_length["session_length"].values
-        del session_length
-        gc.collect()
 
         X_train = X_train[feature_cols]
         # X_valid = X_valid[feature_cols]
@@ -332,10 +351,25 @@ def run_train(type, output_dir, single_fold):
                 "random_state": 42,
             }
 
-        _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
-        _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
-        del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
-        gc.collect()
+        if CFG.objective == "lambdarank":
+            session_length = X_train.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
+            session_lengths_train = session_length["session_length"].values
+
+            session_length = X_valid.groupby("session").size().to_frame().rename(columns={0: "session_length"}).reset_index()
+            session_lengths_valid = session_length["session_length"].values
+            del session_length
+            gc.collect()
+
+            _train = lgb.Dataset(X_train, y_train, group=session_lengths_train)
+            _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train, group=session_lengths_valid)
+            del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
+            gc.collect()
+        else:
+            _train = lgb.Dataset(X_train, y_train)
+            _valid = lgb.Dataset(X_valid[feature_cols], y_valid, reference=_train)
+            del X_train, y_train, y_valid
+            gc.collect()
+
         print("train start")
         ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True)])
         # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
@@ -351,6 +385,12 @@ def run_train(type, output_dir, single_fold):
         del ranker
         gc.collect()
         X_valid["score"] = scores
+        chunk_size = 10
+        batch_size = math.ceil(len(X_valid) / chunk_size)
+        preds_dir = os.path.join(output_dir, "preds", "validation")
+        os.makedirs(preds_dir, exist_ok=True)
+        for i in range(chunk_size):
+            X_valid.loc[i*batch_size:(i+1)*batch_size].to_parquet(os.path.join(preds_dir, f"preds{i}.parquet"))
         X_valid = X_valid.sort_values(["session", "score"]).groupby("session").tail(20)
         X_valid = X_valid.groupby("session")["aid"].apply(list).to_frame()
         joined = X_valid.merge(train_labels, how="left", on=["session"])
@@ -490,6 +530,9 @@ def main(single_fold):
 
 
 if __name__ == "__main__":
+    # for type in ["clicks", "carts", "orders"]:
+    #     print(type)
+    #     create_kfold(type)
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_fold", action="store_true")
     parser.add_argument("--objective", type=str, default="lambdarank")
