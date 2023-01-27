@@ -304,11 +304,11 @@ def run_train(type, output_dir, single_fold):
     # train = train.merge(embeddings_df, on=["session"])
     # print(f"after merge train={train.shape}")
 
-    feature_cols = train.drop(columns=["gt", "session", "type", "aid"]).columns.tolist()
+    feature_cols = train.drop(columns=["gt", "session", "type", "aid", "fold"]).columns.tolist()
     if CFG.wandb:
         wandb.log({f"feature size": len(feature_cols)})
     targets = train["gt"]
-    train = train[feature_cols + ["session", "aid"]]
+    train = train[feature_cols + ["session", "aid", "fold"]]
     print(f"train shape: {train.shape}")
 
     train_labels = train_labels.groupby("session")["aid"].apply(list).to_frame()
