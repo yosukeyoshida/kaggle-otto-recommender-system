@@ -240,7 +240,7 @@ def read_session_embeddings():
     return df
 
 
-def run_train(type, output_dir, single_fold, remove_aid):
+def run_train(type, output_dir, single_fold):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
@@ -278,18 +278,12 @@ def run_train(type, output_dir, single_fold, remove_aid):
     # train = train.merge(embeddings_df, on=["session"])
     # print(f"after merge train={train.shape}")
 
-    if remove_aid:
-        feature_cols = train.drop(columns=["gt", "session", "type", "aid"]).columns.tolist()
-    else:
-        feature_cols = train.drop(columns=["gt", "session", "type"]).columns.tolist()
+    feature_cols = train.drop(columns=["gt", "session", "type", "aid"]).columns.tolist()
     if CFG.wandb:
         wandb.log({f"feature size": len(feature_cols)})
     targets = train["gt"]
     group = train["session"]
-    if remove_aid:
-        train = train[feature_cols + ["session", "aid"]]
-    else:
-        train = train[feature_cols + ["session"]]
+    train = train[feature_cols + ["session", "aid"]]
     print(f"train shape: {train.shape}")
 
     train_labels = train_labels.groupby("session")["aid"].apply(list).to_frame()
@@ -391,7 +385,7 @@ def split_list(l, n):
         yield l[idx : idx + n]
 
 
-def run_inference(output_dir, single_fold, remove_aid):
+def run_inference(output_dir, single_fold):
     path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
     files = glob.glob(path)
     preds = []
@@ -410,10 +404,7 @@ def run_inference(output_dir, single_fold, remove_aid):
         gc.collect()
         # test = test.merge(embeddings_df, on=["session"])
         test = test.merge(test_scores, how="left", on=["session", "aid"])
-        if remove_aid:
-            feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
-        else:
-            feature_cols = test.drop(columns=["session"]).columns.tolist()
+        feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
             print(f"type={type}")
             pred_folds = []
@@ -475,7 +466,7 @@ def run_inference(output_dir, single_fold, remove_aid):
     sub[["session_type", "labels"]].to_csv(os.path.join(output_dir, "submission.csv"), index=False)
 
 
-def main(single_fold, remove_aid):
+def main(single_fold):
     run_name = None
     if CFG.wandb:
         wandb.init(project="kaggle-otto", job_type="ranker", group="feature/lightfm")
@@ -487,23 +478,21 @@ def main(single_fold, remove_aid):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir, single_fold, remove_aid)
-    carts_recall = run_train("carts", output_dir, single_fold, remove_aid)
-    orders_recall = run_train("orders", output_dir, single_fold, remove_aid)
+    clicks_recall = run_train("clicks", output_dir, single_fold)
+    carts_recall = run_train("carts", output_dir, single_fold)
+    orders_recall = run_train("orders", output_dir, single_fold)
     weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
     total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
     if CFG.wandb:
         wandb.log({"total recall": total_recall})
-        wandb.log({"remove_aid": remove_aid})
     if not CFG.cv_only:
-        run_inference(output_dir, single_fold, remove_aid)
+        run_inference(output_dir, single_fold)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_fold", action="store_true")
-    parser.add_argument("--remove_aid", action="store_true")
     parser.add_argument("--objective", type=str, default="lambdarank")
     args = parser.parse_args()
     CFG.objective = args.objective
-    main(args.single_fold, args.remove_aid)
+    main(args.single_fold)
