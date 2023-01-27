@@ -347,7 +347,7 @@ def run_train(type, output_dir, single_fold):
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
         dump_pickle(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), ranker)
-        X_valid = X_valid.sort_values(["session", "aid"])
+        X_valid = X_valid.sort_values(["session", "aid"], ignore_index=True)
         scores = ranker.predict(X_valid[feature_cols])
         del ranker
         gc.collect()
