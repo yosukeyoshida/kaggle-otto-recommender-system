@@ -20,6 +20,7 @@ class CFG:
     num_iterations = 5000
     cv_only = False
     n_folds = 5
+    boosting_type = "gbdt",
     chunk_split_size = 20
     chunk_session_split_size = 20
     input_train_dir = "20230121"
@@ -368,12 +369,14 @@ def run_train(type, output_dir, single_fold):
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
         print("train start")
-        # ranker = lgb.train(params, _train, valid_sets=[_train, _valid], feval=lgb_numba_recall, callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(100)])
-        ranker = lgb.train(params, _train, valid_sets=[_train, _valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir), lgb.log_evaluation(100)])
+        if CFG.boosting_type == "gbdt":
+            ranker = lgb.train(params, _train, valid_sets=[_train, _valid], feval=lgb_numba_recall, callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(100)])
+        else:  # dart
+            ranker = lgb.train(params, _train, valid_sets=[_train, _valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir), lgb.log_evaluation(100)])
         print("train end")
-        # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
-        # ranker = lgb.Booster(model_file=f"{output_dir}/lgb_fold{fold}")
-        # log_summary(ranker, save_model_checkpoint=True)
+
+        if CFG.boosting_type == "dart":
+            ranker = lgb.Booster(model_file=f"{output_dir}/lgb_fold{fold}")
         if CFG.wandb:
             wandb.log({f"[{type}] best_iteration": ranker.best_iteration})
         dump_pickle(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), ranker)
