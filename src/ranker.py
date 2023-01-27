@@ -368,7 +368,7 @@ def run_train(type, output_dir, single_fold):
         del X_train, y_train, y_valid, session_lengths_train, session_lengths_valid
         gc.collect()
         print("train start")
-        ranker = lgb.train(params, _train, valid_sets=[_valid], feval=lgb_numba_recall, callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(10)])
+        ranker = lgb.train(params, _train, valid_sets=[_train, _valid], feval=lgb_numba_recall, callbacks=[wandb_callback(), lgb.early_stopping(stopping_rounds=50, verbose=True), lgb.log_evaluation(10)])
         # ranker = lgb.train(params, _train, valid_sets=[_valid], callbacks=[wandb_callback(), save_model(fold, type, output_dir)])
         print("train end")
         # print(f"fold={fold} best_score={max_score} best_iteration={best_iteration}")
