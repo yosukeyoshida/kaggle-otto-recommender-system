@@ -14,9 +14,9 @@ from wandb.lightgbm import wandb_callback
 
 
 class CFG:
-    wandb = False
+    wandb = True
     num_iterations = 2000
-    cv_only = True
+    cv_only = False
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
