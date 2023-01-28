@@ -16,7 +16,8 @@ from wandb.lightgbm import wandb_callback
 class CFG:
     wandb = True
     num_iterations = 2000
-    cv_only = False
+    cv_only = True
+    stacking = True
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
@@ -191,7 +192,7 @@ def read_files(path):
         for col, dtype in CFG.dtypes.items():
             df[col] = df[col].astype(dtype)
         for col in CFG.float_cols:
-            df[col] = df[col].astype("float32")
+            df[col] = df[col].astype("float16")
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
 
@@ -209,7 +210,7 @@ def read_train_labels():
 def read_train_scores(type):
     df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/train_score_{type}.parquet")
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
-        df[c] = df[c].astype("float32")
+        df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
     return df
@@ -218,7 +219,7 @@ def read_train_scores(type):
 def read_test_scores():
     df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_test_score_dir}/*").to_pandas()
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
-        df[c] = df[c].astype("float32")
+        df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
     return df
@@ -261,7 +262,7 @@ def read_session_embeddings():
     df = pickle.load(open(path, "rb"))
     embeddings_cols = df.drop(columns=["session"]).columns
     for col in embeddings_cols:
-        df[col] = df[col].astype("float32")
+        df[col] = df[col].astype("float16")
     df["session"] = df["session"].astype("int32")
     return df
 
@@ -295,7 +296,6 @@ def run_train(type, output_dir, single_fold):
         _train = _train.merge(train_scores, how="left", on=["session", "aid"])
         train_list.append(_train)
     train = pd.concat(train_list, axis=0, ignore_index=True)
-    train = train.sample(frac=1, random_state=42, ignore_index=True)
     del train_labels_all
     gc.collect()
 
@@ -314,6 +314,8 @@ def run_train(type, output_dir, single_fold):
     train_labels = train_labels.groupby("session")["aid"].apply(list).to_frame()
     train_labels = train_labels.rename(columns={"aid": "ground_truth"})
 
+    preds_dir = os.path.join(output_dir, "preds", "validation", type)
+    os.makedirs(preds_dir, exist_ok=True)
     dfs = []
     for fold in range(CFG.n_folds):
         X_train = train[train["fold"] != fold]
@@ -362,39 +364,42 @@ def run_train(type, output_dir, single_fold):
         scores = ranker.predict(X_valid[feature_cols])
         del ranker
         gc.collect()
-        X_valid["score"] = scores
-        chunk_size = 10
-        batch_size = math.ceil(len(X_valid) / chunk_size)
-        preds_dir = os.path.join(output_dir, "preds", "validation")
-        os.makedirs(preds_dir, exist_ok=True)
-        for i in range(chunk_size):
-            X_valid.loc[i*batch_size:(i+1)*batch_size].to_parquet(os.path.join(preds_dir, f"preds{i}.parquet"))
-        X_valid = X_valid.sort_values(["session", "score"]).groupby("session").tail(20)
-        X_valid = X_valid.groupby("session")["aid"].apply(list).to_frame()
-        joined = X_valid.merge(train_labels, how="left", on=["session"])
-        del X_valid
-        gc.collect()
-        joined = joined[joined["ground_truth"].notnull()]
-        joined["hits"] = joined.apply(lambda df: len(set(df.aid).intersection(set(df.ground_truth))), axis=1)
-        joined["gt_count"] = joined.ground_truth.str.len().clip(0, 20)
-        joined["recall"] = joined["hits"] / joined["gt_count"]
-        dump_pickle(os.path.join(output_dir, f"preds_{type}_fold{fold}.pkl"), joined)
+
+
+        if CFG.stacking:
+            X_valid[f"{type}_score"] = scores
+            X_valid[["session", "aid", f"{type}_score"]].to_parquet(os.path.join(preds_dir, f"{type}_score_fold{fold}.parquet"))
+        else:
+            X_valid["score"] = scores
+            X_valid = X_valid.sort_values(["session", "score"]).groupby("session").tail(20)
+            X_valid = X_valid.groupby("session")["aid"].apply(list).to_frame()
+            joined = X_valid.merge(train_labels, how="left", on=["session"])
+            del X_valid
+            gc.collect()
+            joined = joined[joined["ground_truth"].notnull()]
+            joined["hits"] = joined.apply(lambda df: len(set(df.aid).intersection(set(df.ground_truth))), axis=1)
+            joined["gt_count"] = joined.ground_truth.str.len().clip(0, 20)
+            joined["recall"] = joined["hits"] / joined["gt_count"]
+            dump_pickle(os.path.join(output_dir, f"preds_{type}_fold{fold}.pkl"), joined)
+            recall = joined["hits"].sum() / joined["gt_count"].sum()
+            if CFG.wandb:
+                wandb.log({f"[{type}][fold{fold}] recall": recall})
+            dfs.append(joined)
+            if single_fold:
+                break
+    if CFG.stacking:
+        return None
+    else:
+        joined = pd.concat(dfs)
         recall = joined["hits"].sum() / joined["gt_count"].sum()
-        if CFG.wandb:
-            wandb.log({f"[{type}][fold{fold}] recall": recall})
-        dfs.append(joined)
-        if single_fold:
-            break
-    joined = pd.concat(dfs)
-    recall = joined["hits"].sum() / joined["gt_count"].sum()
-    return recall
+        return recall
 
 
 def cast_cols(df):
     for col, dtype in CFG.dtypes.items():
         df[col] = df[col].astype(dtype)
     for col in CFG.float_cols:
-        df[col] = df[col].astype("float32")
+        df[col] = df[col].astype("float16")
     return df
 
 
@@ -431,7 +436,7 @@ def run_inference(output_dir, single_fold):
                 ranker = pickle.load(open(os.path.join(output_dir, f"ranker_{type}_fold{fold}.pkl"), "rb"))
                 pred = test[["session", "aid"]]
                 pred["score"] = ranker.predict(test[feature_cols])
-                pred["score"] = pred["score"].astype("float32")
+                pred["score"] = pred["score"].astype("float16")
                 pred["type"] = type
                 pred_folds.append(pred)
                 del pred, ranker
@@ -498,10 +503,11 @@ def main(single_fold):
     clicks_recall = run_train("clicks", output_dir, single_fold)
     carts_recall = run_train("carts", output_dir, single_fold)
     orders_recall = run_train("orders", output_dir, single_fold)
-    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    if CFG.wandb:
-        wandb.log({"total recall": total_recall})
+    if not CFG.stacking:
+        weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+        total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+        if CFG.wandb:
+            wandb.log({"total recall": total_recall})
     if not CFG.cv_only:
         run_inference(output_dir, single_fold)
 
