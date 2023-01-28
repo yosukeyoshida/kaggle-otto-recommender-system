@@ -261,11 +261,14 @@ def create_kfold(n_folds=5):
     group = train["session"]
 
     kf = GroupKFold(n_splits=n_folds)
+    train.loc[:, "fold"] = -1
+    train["fold"] = train.astype("int8")
     for fold, (train_indices, valid_indices) in enumerate(kf.split(X=train, groups=group)):
         train.loc[valid_indices, "fold"] = fold
     output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds"
     os.makedirs(output_dir, exist_ok=True)
     train.to_parquet(os.path.join(output_dir, f"train.parquet"))
+    print(train["fold"].value_counts())
 
 
 def read_session_embeddings():
