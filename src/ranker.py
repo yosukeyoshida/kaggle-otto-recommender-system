@@ -5,6 +5,7 @@ import gc
 import glob
 import os
 import pickle
+import polars as pl
 
 import lightgbm as lgb
 import pandas as pd
@@ -209,7 +210,7 @@ def read_train_labels():
 
 
 def read_train_scores():
-    df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/*.parquet")
+    df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/*.parquet").to_pandas()
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
