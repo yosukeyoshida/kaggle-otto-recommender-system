@@ -243,11 +243,17 @@ def create_kfold(n_folds=5):
         for file in files:
             df = pd.read_parquet(file)
             dfs.append(df)
+            del df
+            gc.collect()
         _train = pd.concat(dfs, axis=0, ignore_index=True)
         del dfs
         gc.collect()
         train_list.append(_train)
+        del _train
+        gc.collect()
     train = pd.concat(train_list, axis=0, ignore_index=True)
+    del train_list
+    gc.collect()
     group = train["session"]
 
     kf = GroupKFold(n_splits=n_folds)
