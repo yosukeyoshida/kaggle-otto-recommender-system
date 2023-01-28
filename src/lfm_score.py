@@ -18,7 +18,7 @@ class CFG:
 
 
 def read_ranker_train_dataset(type):
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*.parquet"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
     for c in ["session", "aid"]:
         df[c] = df[c].astype("int32")
@@ -56,7 +56,7 @@ def read_train_interactions():
 
 
 def read_item_embeddings():
-    path = "./input/lightfm/components16/mapped_item_embeddings.pkl"
+    path = f"./input/lightfm/components{CFG.embedding_size}/mapped_item_embeddings.pkl"
     df = pickle.load(open(path, "rb"))
     return df
 
@@ -156,7 +156,7 @@ def main(type):
     os.makedirs(output_dir, exist_ok=True)
 
     embeddings = read_item_embeddings()
-    index = AnnoyIndex(16, "angular")
+    index = AnnoyIndex(CFG.embedding_size, "angular")
     for aid in embeddings.keys():
         index.add_item(aid, embeddings[aid])
     index.build(100)

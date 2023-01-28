@@ -22,8 +22,8 @@ class CFG:
     chunk_session_split_size = 20
     input_train_dir = "20230121"
     input_test_dir = "20230121"
-    input_train_score_dir = "glowing-festival-764"
-    input_test_score_dir = "flashing-orchid-776"
+    input_train_score_dir = "beaming-envelope-821"
+    input_test_score_dir = "sparkling-rocket-820"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",

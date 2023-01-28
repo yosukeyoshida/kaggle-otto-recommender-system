@@ -1,1 +1,2 @@
-python src/ranker.py --single_fold
+python src/lfm_score.py --type train
+python src/lfm_score.py --type test
