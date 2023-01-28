@@ -292,7 +292,7 @@ def run_train(type, output_dir, single_fold):
     train_labels["gt"] = 1
 
     if CFG.stacking_level == 2:
-        score_preds = read_score_preds(type)
+        score_preds = read_score_preds()
 
     train_scores = read_train_scores(type)
 
