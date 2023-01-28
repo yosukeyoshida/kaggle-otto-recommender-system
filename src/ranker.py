@@ -262,7 +262,7 @@ def create_kfold(n_folds=5):
 
     kf = GroupKFold(n_splits=n_folds)
     train.loc[:, "fold"] = -1
-    train["fold"] = train.astype("int8")
+    train["fold"] = train["fold"].astype("int8")
     for fold, (train_indices, valid_indices) in enumerate(kf.split(X=train, groups=group)):
         train.loc[valid_indices, "fold"] = fold
     output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds"
