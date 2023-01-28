@@ -242,10 +242,6 @@ def create_kfold(n_folds=5):
         dfs = []
         for file in files:
             df = pd.read_parquet(file)
-            for col, dtype in CFG.dtypes.items():
-                df[col] = df[col].astype(dtype)
-            for col in CFG.float_cols:
-                df[col] = df[col].astype("float16")
             dfs.append(df)
             del df
             gc.collect()
