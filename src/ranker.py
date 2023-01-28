@@ -438,7 +438,7 @@ def cast_cols(df):
     for col, dtype in CFG.dtypes.items():
         df[col] = df[col].astype(dtype)
     for col in CFG.float_cols:
-        df[col] = df[col].astype("float32")
+        df[col] = df[col].astype("float16")
     return df
 
 
