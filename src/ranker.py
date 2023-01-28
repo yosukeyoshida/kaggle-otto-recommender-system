@@ -23,7 +23,7 @@ class CFG:
     chunk_session_split_size = 20
     input_train_dir = "20230129"
     input_test_dir = "20230121"
-    input_train_score_dir = "glowing-festival-764"
+    input_train_score_dir = "auspicious-noodles-830"
     input_test_score_dir = "flashing-orchid-776"
     input_train_score_preds_dir = "sweet-wish-825"
     dtypes = {
@@ -208,8 +208,8 @@ def read_train_labels():
     return train_labels
 
 
-def read_train_scores(type):
-    df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/train_score_{type}.parquet")
+def read_train_scores():
+    df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/*.parquet")
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
@@ -291,11 +291,6 @@ def run_train(type, output_dir, single_fold):
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    if CFG.stacking_level == 2:
-        score_preds = read_score_preds()
-
-    train_scores = read_train_scores(type)
-
     path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/{type}/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
@@ -315,11 +310,21 @@ def run_train(type, output_dir, single_fold):
         _train = _train.merge(train_labels, how="left", on=["session", "aid"])
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
-        _train = _train.merge(train_scores, how="left", on=["session", "aid"])
-        if CFG.stacking_level == 2:
-            _train = _train.merge(score_preds, how="left", on=["session", "aid"])
         train_list.append(_train)
     train = pd.concat(train_list, axis=0, ignore_index=True)
+
+    # train scores
+    train_scores = read_train_scores()
+    train = train.merge(train_scores, how="left", on=["session", "aid"])
+    del train_scores
+    gc.collect()
+
+    # score preds
+    if CFG.stacking_level == 2:
+        score_preds = read_score_preds()
+        train = train.merge(score_preds, how="left", on=["session", "aid"])
+        del score_preds
+        gc.collect()
     del train_labels_all
     gc.collect()
 
