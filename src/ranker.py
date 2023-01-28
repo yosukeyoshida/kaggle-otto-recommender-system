@@ -17,7 +17,7 @@ class CFG:
     wandb = True
     num_iterations = 2000
     cv_only = True
-    stacking = True
+    stacking_level = 2
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
@@ -25,6 +25,7 @@ class CFG:
     input_test_dir = "20230121"
     input_train_score_dir = "glowing-festival-764"
     input_test_score_dir = "flashing-orchid-776"
+    input_train_score_preds_dir = "sweet-wish-825"
     dtypes = {
         "session": "int32",
         "aid": "int32",
@@ -267,10 +268,20 @@ def read_session_embeddings():
     return df
 
 
+def read_score_preds(type):
+    path = f"./output/lgbm/{CFG.input_train_score_preds_dir}/preds/validation/{type}/*"
+    df = pl.read_parquet(path).to_pandas()
+    df[f"{type}_score"] = df[f"{type}_score"].astype("float16")
+    return df
+
+
 def run_train(type, output_dir, single_fold):
     train_labels_all = read_train_labels()
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
+
+    if CFG.stacking_level == 2:
+        score_preds = read_score_preds(type)
 
     train_scores = read_train_scores(type)
 
@@ -294,6 +305,8 @@ def run_train(type, output_dir, single_fold):
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
         _train = _train.merge(train_scores, how="left", on=["session", "aid"])
+        if CFG.stacking_level == 2:
+            _train = _train.merge(score_preds, how="left", on=["session", "aid"])
         train_list.append(_train)
     train = pd.concat(train_list, axis=0, ignore_index=True)
     del train_labels_all
@@ -366,7 +379,7 @@ def run_train(type, output_dir, single_fold):
         gc.collect()
 
 
-        if CFG.stacking:
+        if CFG.stacking_level == 1:
             X_valid[f"{type}_score"] = scores
             X_valid[["session", "aid", f"{type}_score"]].to_parquet(os.path.join(preds_dir, f"{type}_score_fold{fold}.parquet"))
         else:
@@ -387,7 +400,7 @@ def run_train(type, output_dir, single_fold):
             dfs.append(joined)
             if single_fold:
                 break
-    if CFG.stacking:
+    if CFG.stacking_level == 1:
         return None
     else:
         joined = pd.concat(dfs)
@@ -503,7 +516,7 @@ def main(single_fold):
     clicks_recall = run_train("clicks", output_dir, single_fold)
     carts_recall = run_train("carts", output_dir, single_fold)
     orders_recall = run_train("orders", output_dir, single_fold)
-    if not CFG.stacking:
+    if CFG.stacking_level != 1:
         weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
         total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
         if CFG.wandb:
