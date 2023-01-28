@@ -231,8 +231,8 @@ def dump_pickle(path, o):
         pickle.dump(o, f)
 
 
-def create_kfold(type, n_folds=5):
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*.parquet"
+def create_kfold(n_folds=5):
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/*.parquet"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -253,7 +253,7 @@ def create_kfold(type, n_folds=5):
     kf = GroupKFold(n_splits=n_folds)
     for fold, (train_indices, valid_indices) in enumerate(kf.split(X=train, groups=group)):
         train.loc[valid_indices, "fold"] = fold
-    output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/{type}"
+    output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds"
     os.makedirs(output_dir, exist_ok=True)
     train.to_parquet(os.path.join(output_dir, f"train.parquet"))
 
@@ -291,7 +291,7 @@ def run_train(type, output_dir, single_fold):
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/{type}/*"
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
@@ -542,9 +542,7 @@ def main(single_fold):
 
 
 if __name__ == "__main__":
-    # for type in ["clicks", "carts", "orders"]:
-    #     print(type)
-    #     create_kfold(type)
+    # create_kfold()
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_fold", action="store_true")
     args = parser.parse_args()
