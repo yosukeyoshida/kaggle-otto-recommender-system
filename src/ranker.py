@@ -243,7 +243,7 @@ def create_kfold(n_folds=5):
         dfs = []
         for file in files:
             df = pd.read_parquet(file)
-            df = cast_cols(df)
+            df = cast_cols(df, half_float=False)
             dfs.append(df)
             del df
             gc.collect()
@@ -265,8 +265,9 @@ def create_kfold(n_folds=5):
         train.loc[valid_indices, "fold"] = fold
     output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds"
     os.makedirs(output_dir, exist_ok=True)
-    train.to_parquet(os.path.join(output_dir, f"train.parquet"))
-    print(train["fold"].value_counts())
+    batch_size = math.ceil(len(files) / 5)
+    for i in range(5):
+        train.loc[i * batch_size:(i + 1) * batch_size].to_parquet(os.path.join(output_dir, f"train{i}.parquet"))
 
 
 def read_session_embeddings():
@@ -304,7 +305,7 @@ def run_train(type, output_dir, single_fold):
 
     path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/*"
     files = glob.glob(path)
-    chunk_size = math.ceil(len(files) / 3)
+    chunk_size = math.ceil(len(files) / 5)
     files_list = split_list(files, chunk_size)
     train_list = []
     for i, files in enumerate(files_list):
@@ -435,11 +436,14 @@ def run_train(type, output_dir, single_fold):
         return recall
 
 
-def cast_cols(df):
+def cast_cols(df, half_float=True):
     for col, dtype in CFG.dtypes.items():
         df[col] = df[col].astype(dtype)
     for col in CFG.float_cols:
-        df[col] = df[col].astype("float16")
+        if half_float:
+            df[col] = df[col].astype("float16")
+        else:
+            df[col] = df[col].astype("float32")
     return df
 
 
@@ -553,8 +557,11 @@ def main(single_fold):
 
 
 if __name__ == "__main__":
-    # create_kfold()
     parser = argparse.ArgumentParser()
     parser.add_argument("--single_fold", action="store_true")
+    parser.add_argument("--type", type=str)
     args = parser.parse_args()
-    main(args.single_fold)
+    if args.type == "kfold":
+        create_kfold()
+    else:
+        main(args.single_fold)
