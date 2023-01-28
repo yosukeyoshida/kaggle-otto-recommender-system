@@ -268,10 +268,21 @@ def read_session_embeddings():
     return df
 
 
-def read_score_preds(type):
-    path = f"./output/lgbm/{CFG.input_train_score_preds_dir}/preds/validation/{type}/*"
-    df = pl.read_parquet(path).to_pandas()
-    df[f"{type}_score"] = df[f"{type}_score"].astype("float16")
+def read_score_preds():
+    for type in ["clicks", "carts", "orders"]:
+        path = f"./output/lgbm/{CFG.input_train_score_preds_dir}/preds/validation/{type}/*"
+        if type == "clicks":
+            df = pl.read_parquet(path).to_pandas()
+            print(f"{type} score preds shape: {df.shape}")
+            print(df.head())
+        else:
+            _df = pl.read_parquet(path).to_pandas()
+            print(f"{type} score preds shape: {_df.shape}")
+            print(_df.head())
+            df = df.merge(_df, on=["session", "aid"], how="left")
+            del _df
+            gc.collect()
+        df[f"{type}_score"] = df[f"{type}_score"].astype("float16")
     return df
 
 
