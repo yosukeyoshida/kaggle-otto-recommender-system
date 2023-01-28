@@ -10,15 +10,15 @@ import polars as pl
 import os
 
 class CFG:
-    input_train_dir = "20230121"
+    input_train_dir = "20230129"
     input_test_dir = "20230121"
     embedding_size = 16
     wandb = True
     chunk_size = 5
 
 
-def read_ranker_train_dataset(type):
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
+def read_ranker_train_dataset():
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/*"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
     for c in ["session", "aid"]:
         df[c] = df[c].astype("int32")
@@ -70,23 +70,24 @@ def calc_train_score(index, output_dir):
     print("calc_train_score start")
     session_aids = read_train_interactions()
 
-    for t in ["clicks", "carts", "orders"]:
-        print(f"{t} start")
-        candidates = read_ranker_train_dataset(type=t)
-        candidates_session_aids = candidates.groupby("session")["aid"].apply(list).to_frame().reset_index()
-        for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
-            candidates_session_aids[c] = np.nan
-            candidates_session_aids[c] = candidates_session_aids[c].astype('object')
-        del candidates
-        gc.collect()
-
-        candidates_session_aids = scoring(candidates_session_aids, session_aids, index)
-        candidates_session_aids = candidates_session_aids.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
-        candidates_session_aids.to_parquet(os.path.join(output_dir, f"train_score_{t}.parquet"))
-        del candidates_session_aids
-        gc.collect()
-    del session_aids
+    candidates = read_ranker_train_dataset()
+    candidates_session_aids = candidates.groupby("session")["aid"].apply(list).to_frame().reset_index()
+    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        candidates_session_aids[c] = np.nan
+        candidates_session_aids[c] = candidates_session_aids[c].astype('object')
+    del candidates
     gc.collect()
+
+    batch_size = math.ceil(len(candidates_session_aids) / CFG.chunk_size)
+
+    for i in range(CFG.chunk_size):
+        print(f"i={i}")
+        tmp = candidates_session_aids.loc[i*batch_size:(i+1)*batch_size]
+        tmp = scoring(tmp, session_aids, index)
+        tmp = tmp.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
+        tmp.to_parquet(os.path.join(output_dir, f"train_score{i}.parquet"))
+        del tmp
+        gc.collect()
 
 
 def calc_test_score(index, output_dir):

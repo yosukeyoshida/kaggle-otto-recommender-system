@@ -17,11 +17,11 @@ class CFG:
     wandb = True
     num_iterations = 2000
     cv_only = True
-    stacking_level = 2
+    stacking_level = None
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
-    input_train_dir = "20230121"
+    input_train_dir = "20230129"
     input_test_dir = "20230121"
     input_train_score_dir = "glowing-festival-764"
     input_test_score_dir = "flashing-orchid-776"

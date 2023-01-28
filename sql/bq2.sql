@@ -1,8 +1,6 @@
 EXPORT DATA
   OPTIONS(
-    uri='gs://kaggle-yosuke/lgbm_dataset/20230121/clicks/train_*.parquet',  -- FIXME
---     uri='gs://kaggle-yosuke/lgbm_dataset/20230121/carts/train_*.parquet',
---     uri='gs://kaggle-yosuke/lgbm_dataset/20230121/orders/train_*.parquet',
+    uri='gs://kaggle-yosuke/lgbm_dataset/20230129/train_*.parquet',  -- FIXME
     format='PARQUET',
     overwrite=true
   )
@@ -24,16 +22,13 @@ WITH joined AS (
   FROM (
     SELECT
       session,
-      SUM(CASE WHEN type = "clicks" THEN 1 ELSE 0 END) AS clicks_cnt,
       SUM(CASE WHEN type = "carts" THEN 1 ELSE 0 END) AS carts_cnt,
       SUM(CASE WHEN type = "orders" THEN 1 ELSE 0 END) AS orders_cnt
     FROM joined
     WHERE type is not NULL
     GROUP BY session
   ) t
-  WHERE t.clicks_cnt > 0  -- FIXME
---   WHERE t.carts_cnt > 0
---   WHERE t.orders_cnt > 0
+  WHERE t.carts_cnt > 0 OR t.orders_cnt > 0
 ), negative_list AS (
   SELECT
     session,
@@ -45,9 +40,7 @@ WITH joined AS (
     FROM (
       SELECT
         j.*,
-        h.clicks_cnt AS gt_cnt,  -- FIXME
---         h.carts_cnt AS gt_cnt,
---         h.orders_cnt AS gt_cnt,
+        CASE WHEN h.carts_cnt > h.orders_cnt THEN h.carts_cnt ELSE h.orders_cnt END AS gt_cnt,
         rand() AS random
       FROM joined j
       INNER JOIN target_session h ON h.session = j.session
@@ -60,10 +53,7 @@ WITH joined AS (
     session,
     aid
   FROM joined
-  WHERE type = 'clicks'  -- FIXME
---   WHERE type = 'carts'
---   WHERE type = 'orders'
-  AND session IN (SELECT session FROM target_session)
+  WHERE session IN (SELECT session FROM target_session)
 )
 
 SELECT c.*
