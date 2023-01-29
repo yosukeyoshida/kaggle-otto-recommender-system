@@ -311,7 +311,7 @@ def run_train(type, output_dir, single_fold):
         print(f"chunk{i}")
         dfs = []
         for file in files:
-            df = pl.read_parquet(file).to_pandas()
+            df = pd.read_parquet(file)
             df = cast_cols(df)
             dfs.append(df)
             del df
