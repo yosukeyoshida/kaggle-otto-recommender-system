@@ -265,8 +265,9 @@ def create_kfold(n_folds=5):
         train.loc[valid_indices, "fold"] = fold
     output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds"
     os.makedirs(output_dir, exist_ok=True)
-    batch_size = math.ceil(len(train) / 5)
-    for i in range(5):
+    file_length = 10
+    batch_size = math.ceil(len(train) / file_length)
+    for i in range(file_length):
         train.loc[i * batch_size:(i + 1) * batch_size].to_parquet(os.path.join(output_dir, f"train{i}.parquet"))
 
 
