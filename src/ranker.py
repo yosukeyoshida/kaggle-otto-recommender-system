@@ -22,9 +22,9 @@ class CFG:
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
-    input_train_dir = "20230129"
+    input_train_dir = "20230121"
     input_test_dir = "20230121"
-    input_train_score_dir = "auspicious-noodles-830"
+    input_train_score_dir = "glowing-festival-764"
     input_test_score_dir = "flashing-orchid-776"
     input_train_score_preds_dir = "sweet-wish-825"
     dtypes = {
@@ -210,7 +210,7 @@ def read_train_labels():
 
 
 def read_train_scores():
-    df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/*.parquet").to_pandas()
+    df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_score_dir}/train_score_orders.parquet")
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
