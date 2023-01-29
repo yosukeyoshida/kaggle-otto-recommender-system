@@ -312,10 +312,13 @@ def run_train(type, output_dir, single_fold):
         print(f"chunk{i}")
         dfs = []
         for file in files:
-            df = pd.read_parquet(file)
+            df = pl.read_parquet(file).to_pandas()
             df = cast_cols(df)
             dfs.append(df)
+            del df
+            gc.collect()
         _train = pd.concat(dfs, axis=0, ignore_index=True)
+        print(f"_train shape: {_train.shape}")
         del dfs
         gc.collect()
 
@@ -323,6 +326,8 @@ def run_train(type, output_dir, single_fold):
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
         train_list.append(_train)
+        del _train
+        gc.collect()
     train = pd.concat(train_list, axis=0, ignore_index=True)
 
     # train scores
