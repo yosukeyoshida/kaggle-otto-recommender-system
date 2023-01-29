@@ -22,6 +22,7 @@ class CFG:
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
+    train_chunk_size = 10
     input_train_dir = "20230121"
     input_test_dir = "20230121"
     input_train_score_dir = "glowing-festival-764"
@@ -265,7 +266,7 @@ def create_kfold(n_folds=5):
         train.loc[valid_indices, "fold"] = fold
     output_dir = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds"
     os.makedirs(output_dir, exist_ok=True)
-    file_length = 10
+    file_length = CFG.train_chunk_size
     batch_size = math.ceil(len(train) / file_length)
     for i in range(file_length):
         train.loc[i * batch_size:(i + 1) * batch_size].to_parquet(os.path.join(output_dir, f"train{i}.parquet"))
@@ -304,23 +305,13 @@ def run_train(type, output_dir, single_fold):
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/*"
-    files = glob.glob(path)
     train_list = []
-    for i, files in enumerate(files):
+    for i in range(CFG.train_chunk_size):
         print(f"chunk{i}")
-        dfs = []
-        for file in files:
-            df = pd.read_parquet(file)
-            df = cast_cols(df)
-            dfs.append(df)
-            del df
-            gc.collect()
-        _train = pd.concat(dfs, axis=0, ignore_index=True)
+        path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/train{i}.parquet"
+        _train = pd.read_parquet(path)
         print(f"_train shape: {_train.shape}")
-        del dfs
-        gc.collect()
-
+        _train = cast_cols(_train)
         _train = _train.merge(train_labels, how="left", on=["session", "aid"])
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
