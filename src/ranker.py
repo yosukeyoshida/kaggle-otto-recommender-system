@@ -306,7 +306,7 @@ def run_train(type, output_dir, single_fold):
 
     path = f"./input/lgbm_dataset/{CFG.input_train_dir}/kfolds/*"
     files = glob.glob(path)
-    chunk_size = math.ceil(len(files) / 5)
+    chunk_size = math.ceil(len(files) / 10)
     files_list = split_list(files, chunk_size)
     train_list = []
     for i, files in enumerate(files_list):
