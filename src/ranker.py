@@ -17,7 +17,7 @@ from wandb.lightgbm import wandb_callback
 
 class CFG:
     wandb = True
-    num_iterations = 5000
+    num_iterations = 10000
     cv_only = False
     n_folds = 5
     boosting_type = "dart"
