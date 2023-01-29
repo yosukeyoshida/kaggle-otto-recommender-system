@@ -233,7 +233,7 @@ def dump_pickle(path, o):
 
 
 def create_kfold(n_folds=5):
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/*.parquet"
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/orders/*.parquet"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
     files_list = split_list(files, chunk_size)
