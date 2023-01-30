@@ -26,6 +26,8 @@ class CFG:
     input_test_score_dir = "flashing-orchid-776"
     input_train_w2v_score_dir = "virtuous-fuse-850"
     input_test_w2v_score_dir = "glowing-snake-851"
+    input_train_mf_score_dir = "filigreed-rabbit-858"
+    input_test_mf_score_dir = ""  # FIXME
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
@@ -228,6 +230,16 @@ def read_train_w2v_scores(type):
     return df
 
 
+def read_train_mf_scores(type):
+    df = pd.read_parquet(f"./input/mf_score/{CFG.input_train_mf_score_dir}/train_score_{type}.parquet")
+    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    df = df.rename({"score_mean": "mf_score_mean", "score_std": "mf_score_std", "score_max": "mf_score_max", "score_min": "mf_score_min", "score_length": "mf_score_length"})
+    return df
+
+
 def read_test_scores():
     df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_test_score_dir}/*").to_pandas()
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
@@ -246,6 +258,15 @@ def read_test_w2v_scores():
     df = df.rename({"score_mean": "w2v_score_mean", "score_std": "w2v_score_std", "score_max": "w2v_score_max", "score_min": "w2v_score_min", "score_length": "w2v_score_length"})
     return df
 
+
+def read_test_mf_scores():
+    df = pl.read_parquet(f"./input/mf_score/{CFG.input_test_mf_score_dir}/*").to_pandas()
+    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    df = df.rename({"score_mean": "mf_score_mean", "score_std": "mf_score_std", "score_max": "mf_score_max", "score_min": "mf_score_min", "score_length": "mf_score_length"})
+    return df
 
 def dump_pickle(path, o):
     with open(path, "wb") as f:
@@ -269,6 +290,7 @@ def run_train(type, output_dir, single_fold):
 
     train_scores = read_train_scores(type)
     w2v_train_scores = read_train_w2v_scores(type)
+    mf_train_scores = read_train_mf_scores(type)
 
     path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
     files = glob.glob(path)
@@ -291,6 +313,7 @@ def run_train(type, output_dir, single_fold):
         _train["gt"] = _train["gt"].astype("int8")
         _train = _train.merge(train_scores, how="left", on=["session", "aid"])
         _train = _train.merge(w2v_train_scores, how="left", on=["session", "aid"])
+        _train = _train.merge(mf_train_scores, how="left", on=["session", "aid"])
         train_list.append(_train)
     train = pd.concat(train_list, axis=0, ignore_index=True)
     train = train.sample(frac=1, random_state=42, ignore_index=True)
@@ -418,6 +441,7 @@ def run_inference(output_dir, single_fold):
     # embeddings_df = read_session_embeddings()
     test_scores = read_test_scores()
     w2v_test_scores = read_test_w2v_scores()
+    mf_test_scores = read_test_mf_scores()
     for files in files_list:
         dfs = []
         for file in files:
@@ -430,6 +454,7 @@ def run_inference(output_dir, single_fold):
         # test = test.merge(embeddings_df, on=["session"])
         test = test.merge(test_scores, how="left", on=["session", "aid"])
         test = test.merge(w2v_test_scores, how="left", on=["session", "aid"])
+        test = test.merge(mf_test_scores, how="left", on=["session", "aid"])
         feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
             print(f"type={type}")
