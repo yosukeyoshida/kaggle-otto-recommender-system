@@ -25,7 +25,7 @@ class CFG:
     input_train_score_dir = "glowing-festival-764"
     input_test_score_dir = "flashing-orchid-776"
     input_train_w2v_score_dir = "virtuous-fuse-850"
-    input_test_w2v_score_dir = ""
+    input_test_w2v_score_dir = "glowing-snake-851"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
