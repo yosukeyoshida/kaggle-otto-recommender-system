@@ -18,7 +18,7 @@ class CFG:
 
 
 def read_ranker_train_dataset(type):
-    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
+    path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*.parquet"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
     for c in ["session", "aid"]:
         df[c] = df[c].astype("int32")
@@ -26,7 +26,7 @@ def read_ranker_train_dataset(type):
 
 
 def read_ranker_test_dataset():
-    path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*"
+    path = f"./input/lgbm_dataset_test/{CFG.input_test_dir}/*.parquet"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
     for c in ["session", "aid"]:
         df[c] = df[c].astype("int32")
@@ -34,7 +34,7 @@ def read_ranker_test_dataset():
 
 
 def read_test_interactions():
-    path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
+    path = "./input/otto-chunk-data-inparquet-format/test_parquet/*.parquet"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
     for c in ["session", "aid"]:
         df[c] = df[c].astype("int32")
@@ -45,7 +45,7 @@ def read_test_interactions():
 
 
 def read_train_interactions():
-    path = "./input/otto-validation/test_parquet/*"
+    path = "./input/otto-validation/test_parquet/*.parquet"
     df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
     for c in ["session", "aid"]:
         df[c] = df[c].astype("int32")
@@ -150,9 +150,9 @@ def main(type):
         wandb.init(project="kaggle-otto", job_type="scoring", group=type)
         run_name = wandb.run.name
     if run_name is not None:
-        output_dir = os.path.join("output/lightfm_score", run_name)
+        output_dir = os.path.join("output/word2vec_score", run_name)
     else:
-        output_dir = "output/lightfm_score"
+        output_dir = "output/word2vec_score"
     os.makedirs(output_dir, exist_ok=True)
 
     embeddings = read_item_embeddings()
