@@ -1,4 +1,5 @@
 import glob
+import polars as pl
 import argparse
 import os
 from collections import Counter
@@ -23,6 +24,17 @@ def read_files(path):
         df = pd.read_parquet(file)
         dfs.append(df)
     return pd.concat(dfs).reset_index(drop=True)
+
+
+def get_item_embeddings(output_dir):
+    train_file_path = "./input/otto-chunk-data-inparquet-format/*_parquet/*"
+    train = pl.read_parquet(train_file_path).to_pandas()
+    sentences = train.groupby("session")["aid"].apply(list).to_list()
+    w2vec = Word2Vec(sentences=sentences, vector_size=32, min_count=1, workers=4, window=25, sg=1, negative=20)
+    aid2idx = {aid: i for i, aid in enumerate(w2vec.wv.index_to_key)}
+    item_embeddings = w2vec.wv.vectors
+    mapped_item_embeddings = {name: item_embeddings[index] for name, index in aid2idx.items()}
+    dump_pickle(os.path.join(output_dir, "mapped_item_embeddings.pkl"), mapped_item_embeddings)
 
 
 def main(cv, output_dir, **kwargs):
@@ -74,21 +86,23 @@ def main(cv, output_dir, **kwargs):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    # parser.add_argument("--window", type=int, default=200)
-    args = parser.parse_args()
-
-    run_name = None
-    if CFG.wandb:
-        wandb.init(project="kaggle-otto", job_type="word2vec")
-        run_name = wandb.run.name
-    if run_name is not None:
-        output_dir = os.path.join("output/word2vec", run_name)
-    else:
-        output_dir = "output/word2vec"
+    # parser = argparse.ArgumentParser()
+    # args = parser.parse_args()
+    #
+    # run_name = None
+    # if CFG.wandb:
+    #     wandb.init(project="kaggle-otto", job_type="word2vec")
+    #     run_name = wandb.run.name
+    # if run_name is not None:
+    #     output_dir = os.path.join("output/word2vec", run_name)
+    # else:
+    #     output_dir = "output/word2vec"
+    # os.makedirs(output_dir, exist_ok=True)
+    # os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
+    # params = {}
+    # main(cv=True, output_dir=os.path.join(output_dir, "cv"), **params)
+    # if not CFG.cv_only:
+    #     main(cv=False, output_dir=output_dir)
+    output_dir = "output/word2vec/item_embeddings"
     os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(os.path.join(output_dir, "cv"), exist_ok=True)
-    params = {}
-    main(cv=True, output_dir=os.path.join(output_dir, "cv"), **params)
-    if not CFG.cv_only:
-        main(cv=False, output_dir=output_dir)
+    get_item_embeddings(output_dir)
