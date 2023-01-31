@@ -228,7 +228,7 @@ def read_train_w2v_scores(type):
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
-    df = df.rename({"score_mean": "w2v_score_mean", "score_std": "w2v_score_std", "score_max": "w2v_score_max", "score_min": "w2v_score_min", "score_length": "w2v_score_length"})
+    df = df.rename(columns={"score_mean": "w2v_score_mean", "score_std": "w2v_score_std", "score_max": "w2v_score_max", "score_min": "w2v_score_min", "score_length": "w2v_score_length"})
     return df
 
 
@@ -238,7 +238,7 @@ def read_train_mf_scores(type):
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
-    df = df.rename({"score_mean": "mf_score_mean", "score_std": "mf_score_std", "score_max": "mf_score_max", "score_min": "mf_score_min", "score_length": "mf_score_length"})
+    df = df.rename(columns={"score_mean": "mf_score_mean", "score_std": "mf_score_std", "score_max": "mf_score_max", "score_min": "mf_score_min", "score_length": "mf_score_length"})
     return df
 
 
@@ -248,7 +248,7 @@ def read_train_fasttext_scores(type):
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
-    df = df.rename({"score_mean": "fasttext_score_mean", "score_std": "fasttext_score_std", "score_max": "fasttext_score_max", "score_min": "fasttext_score_min", "score_length": "fasttext_score_length"})
+    df = df.rename(columns={"score_mean": "fasttext_score_mean", "score_std": "fasttext_score_std", "score_max": "fasttext_score_max", "score_min": "fasttext_score_min", "score_length": "fasttext_score_length"})
     return df
 
 
