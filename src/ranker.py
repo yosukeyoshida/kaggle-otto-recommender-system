@@ -16,7 +16,7 @@ from wandb.lightgbm import wandb_callback
 class CFG:
     wandb = True
     num_iterations = 2000
-    cv_only = True
+    cv_only = False
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 15
@@ -538,6 +538,7 @@ def run_inference(output_dir, single_fold):
     files_list = split_list(files, chunk_size)
     # embeddings_df = read_session_embeddings()
     test_scores = read_test_scores()
+    test_last_scores = read_test_last_scores()
     w2v_test_scores = read_test_w2v_scores()
     w2v_test_last_scores = read_test_w2v_last_scores()
     fasttext_test_scores = read_test_fasttext_scores()
@@ -556,6 +557,7 @@ def run_inference(output_dir, single_fold):
         gc.collect()
         # score
         test = test.merge(test_scores, how="left", on=["session", "aid"])
+        test = test.merge(test_last_scores, how="left", on=["session", "aid"])
         test = test.merge(w2v_test_scores, how="left", on=["session", "aid"])
         test = test.merge(w2v_test_last_scores, how="left", on=["session", "aid"])
         test = test.merge(fasttext_test_scores, how="left", on=["session", "aid"])
