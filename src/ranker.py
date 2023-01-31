@@ -16,13 +16,14 @@ from wandb.lightgbm import wandb_callback
 class CFG:
     wandb = True
     num_iterations = 2000
-    cv_only = False
+    cv_only = True
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
     input_train_dir = "20230121"
     input_test_dir = "20230121"
     input_train_score_dir = "glowing-festival-764"
+    input_train_last_score_dir = "brilliant-monkey-875"
     input_test_score_dir = "flashing-orchid-776"
     input_train_w2v_score_dir = "virtuous-fuse-850"
     input_test_w2v_score_dir = "glowing-snake-851"
@@ -222,6 +223,15 @@ def read_train_scores(type):
     return df
 
 
+def read_train_last_scores(type):
+    df = pd.read_parquet(f"./input/lightfm_score/{CFG.input_train_last_score_dir}/train_score_{type}.parquet")
+    for c in ["last_score"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    return df
+
+
 def read_train_w2v_scores(type):
     df = pd.read_parquet(f"./input/word2vec_score/{CFG.input_train_w2v_score_dir}/train_score_{type}.parquet")
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
@@ -338,10 +348,12 @@ def run_train(type, output_dir, single_fold):
 
     # score
     train_scores = read_train_scores(type)
+    train_last_scores = read_train_last_scores(type)
     w2v_train_scores = read_train_w2v_scores(type)
     fasttext_train_scores = read_train_fasttext_scores(type)
     # mf_train_scores = read_train_mf_scores(type)
     train = train.merge(train_scores, how="left", on=["session", "aid"])
+    train = train.merge(train_last_scores, how="left", on=["session", "aid"])
     train = train.merge(w2v_train_scores, how="left", on=["session", "aid"])
     train = train.merge(fasttext_train_scores, how="left", on=["session", "aid"])
     # _train = _train.merge(mf_train_scores, how="left", on=["session", "aid"])
@@ -564,13 +576,13 @@ def main(single_fold):
         output_dir = "output/lgbm"
     os.makedirs(output_dir, exist_ok=True)
 
-    clicks_recall = run_train("clicks", output_dir, single_fold)
+    # clicks_recall = run_train("clicks", output_dir, single_fold)
     carts_recall = run_train("carts", output_dir, single_fold)
     orders_recall = run_train("orders", output_dir, single_fold)
-    weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
-    total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
-    if CFG.wandb:
-        wandb.log({"total recall": total_recall})
+    # weights = {"clicks": 0.10, "carts": 0.30, "orders": 0.60}
+    # total_recall = clicks_recall * weights["clicks"] + carts_recall * weights["carts"] + orders_recall * weights["orders"]
+    # if CFG.wandb:
+    #     wandb.log({"total recall": total_recall})
     if not CFG.cv_only:
         run_inference(output_dir, single_fold)
 

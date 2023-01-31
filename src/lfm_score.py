@@ -35,10 +35,11 @@ def read_ranker_test_dataset():
 
 def read_test_interactions():
     path = "./input/otto-chunk-data-inparquet-format/test_parquet/*"
-    df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
+    df = pl.read_parquet(path, columns=["session", "aid", "ts"]).to_pandas()
     for c in ["session", "aid"]:
         df[c] = df[c].astype("int32")
-    session_aids = df.groupby("session")["aid"].apply(list)
+    session_aids = df.sort_values("ts").groupby("session").tail(1)
+    session_aids.drop(columns=["ts"], inplace=True)
     del df
     gc.collect()
     return session_aids
@@ -46,10 +47,11 @@ def read_test_interactions():
 
 def read_train_interactions():
     path = "./input/otto-validation/test_parquet/*"
-    df = pl.read_parquet(path, columns=["session", "aid"]).to_pandas()
+    df = pl.read_parquet(path, columns=["session", "aid", "ts"]).to_pandas()
     for c in ["session", "aid"]:
         df[c] = df[c].astype("int32")
-    session_aids = df.groupby("session")["aid"].apply(list)
+    session_aids = df.sort_values("ts").groupby("session").tail(1)
+    session_aids.drop(columns=["ts"], inplace=True)
     del df
     gc.collect()
     return session_aids
@@ -70,18 +72,18 @@ def calc_train_score(index, output_dir):
     print("calc_train_score start")
     session_aids = read_train_interactions()
 
-    for t in ["clicks", "carts", "orders"]:
+    for t in ["carts", "orders"]:
         print(f"{t} start")
         candidates = read_ranker_train_dataset(type=t)
         candidates_session_aids = candidates.groupby("session")["aid"].apply(list).to_frame().reset_index()
-        for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        for c in ["last_score"]:
             candidates_session_aids[c] = np.nan
             candidates_session_aids[c] = candidates_session_aids[c].astype('object')
         del candidates
         gc.collect()
 
         candidates_session_aids = scoring(candidates_session_aids, session_aids, index)
-        candidates_session_aids = candidates_session_aids.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
+        candidates_session_aids = candidates_session_aids.explode(["aid", "last_score"], ignore_index=True)
         candidates_session_aids.to_parquet(os.path.join(output_dir, f"train_score_{t}.parquet"))
         del candidates_session_aids
         gc.collect()
@@ -95,7 +97,7 @@ def calc_test_score(index, output_dir):
 
     candidates = read_ranker_test_dataset()
     candidates_session_aids = candidates.groupby("session")["aid"].apply(list).to_frame().reset_index()
-    for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+    for c in ["last_score"]:
         candidates_session_aids[c] = np.nan
         candidates_session_aids[c] = candidates_session_aids[c].astype('object')
     del candidates
@@ -107,7 +109,7 @@ def calc_test_score(index, output_dir):
         print(f"i={i}")
         tmp = candidates_session_aids.loc[i*batch_size:(i+1)*batch_size]
         tmp = scoring(tmp, session_aids, index)
-        tmp = tmp.explode(["aid", "score_mean", "score_std", "score_max", "score_min", "score_length"], ignore_index=True)
+        tmp = tmp.explode(["aid", "last_score"], ignore_index=True)
         tmp.to_parquet(os.path.join(output_dir, f"test_score{i}.parquet"))
         del tmp
         gc.collect()
@@ -121,26 +123,12 @@ def scoring(candidates_session_aids, session_aids, index):
         target_indices = candidates_session_aids.loc[candidates_session_aids["session"] == session].index.values
         assert len(target_indices) == 1
         target_index = target_indices[0]
-        score_mean = []
-        score_std = []
-        score_max = []
-        score_min = []
-        score_length = []
+        last_aid_score = []
+        session_aid = session_aids.loc[session_aids["session"] == session, "aid"].item()
         for candidate_aid in candidates_session_aids.loc[target_index, "aid"]:
-            distances = []
-            for session_aid in session_aids[session]:
-                dis = index.get_distance(session_aid, candidate_aid)
-                distances.append(dis)
-            score_mean.append(np.mean(distances))
-            score_std.append(np.std(distances))
-            score_max.append(np.max(distances))
-            score_min.append(np.min(distances))
-            score_length.append(len(distances))
-        candidates_session_aids.at[target_index, "score_mean"] = score_mean
-        candidates_session_aids.at[target_index, "score_std"] = score_std
-        candidates_session_aids.at[target_index, "score_max"] = score_max
-        candidates_session_aids.at[target_index, "score_min"] = score_min
-        candidates_session_aids.at[target_index, "score_length"] = score_length
+            dis = index.get_distance(session_aid, candidate_aid)
+            last_aid_score.append(dis)
+        candidates_session_aids.at[target_index, "last_score"] = last_aid_score
     return candidates_session_aids
 
 
