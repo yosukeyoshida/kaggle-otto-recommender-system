@@ -16,7 +16,7 @@ from wandb.lightgbm import wandb_callback
 class CFG:
     wandb = True
     num_iterations = 2000
-    cv_only = False
+    cv_only = True
     n_folds = 5
     chunk_split_size = 20
     chunk_session_split_size = 20
@@ -310,11 +310,6 @@ def run_train(type, output_dir, single_fold):
     train_labels = train_labels_all[train_labels_all["type"] == type]
     train_labels["gt"] = 1
 
-    train_scores = read_train_scores(type)
-    w2v_train_scores = read_train_w2v_scores(type)
-    mf_train_scores = read_train_mf_scores(type)
-    fasttext_train_scores = read_train_fasttext_scores(type)
-
     path = f"./input/lgbm_dataset/{CFG.input_train_dir}/{type}/*"
     files = glob.glob(path)
     chunk_size = math.ceil(len(files) / 3)
@@ -327,6 +322,8 @@ def run_train(type, output_dir, single_fold):
             df = pd.read_parquet(file)
             df = cast_cols(df)
             dfs.append(df)
+            del df
+            gc.collect()
         _train = pd.concat(dfs, axis=0, ignore_index=True)
         del dfs
         gc.collect()
@@ -334,14 +331,22 @@ def run_train(type, output_dir, single_fold):
         _train = _train.merge(train_labels, how="left", on=["session", "aid"])
         _train["gt"].fillna(0, inplace=True)
         _train["gt"] = _train["gt"].astype("int8")
-        _train = _train.merge(train_scores, how="left", on=["session", "aid"])
-        _train = _train.merge(w2v_train_scores, how="left", on=["session", "aid"])
-        _train = _train.merge(mf_train_scores, how="left", on=["session", "aid"])
-        _train = _train.merge(fasttext_train_scores, how="left", on=["session", "aid"])
         train_list.append(_train)
+        del _train
+        gc.collect()
     train = pd.concat(train_list, axis=0, ignore_index=True)
-    train = train.sample(frac=1, random_state=42, ignore_index=True)
-    del train_labels_all
+
+    # score
+    train_scores = read_train_scores(type)
+    w2v_train_scores = read_train_w2v_scores(type)
+    fasttext_train_scores = read_train_fasttext_scores(type)
+    # mf_train_scores = read_train_mf_scores(type)
+    train = train.merge(train_scores, how="left", on=["session", "aid"])
+    train = train.merge(w2v_train_scores, how="left", on=["session", "aid"])
+    train = train.merge(fasttext_train_scores, how="left", on=["session", "aid"])
+    # _train = _train.merge(mf_train_scores, how="left", on=["session", "aid"])
+
+    del train_labels_all, train_scores, w2v_train_scores, fasttext_train_scores
     gc.collect()
 
     # embeddings_df = read_session_embeddings()
@@ -465,22 +470,24 @@ def run_inference(output_dir, single_fold):
     # embeddings_df = read_session_embeddings()
     test_scores = read_test_scores()
     w2v_test_scores = read_test_w2v_scores()
-    mf_test_scores = read_test_mf_scores()
     fasttext_test_scores = read_test_fasttext_scores()
+    # mf_test_scores = read_test_mf_scores()
     for files in files_list:
         dfs = []
         for file in files:
             df = pd.read_parquet(file)
             df = cast_cols(df)
             dfs.append(df)
+            del df
+            gc.collect()
         test = pd.concat(dfs)
         del dfs
         gc.collect()
-        # test = test.merge(embeddings_df, on=["session"])
+        # score
         test = test.merge(test_scores, how="left", on=["session", "aid"])
         test = test.merge(w2v_test_scores, how="left", on=["session", "aid"])
-        test = test.merge(mf_test_scores, how="left", on=["session", "aid"])
         test = test.merge(fasttext_test_scores, how="left", on=["session", "aid"])
+        # test = test.merge(mf_test_scores, how="left", on=["session", "aid"])
         feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
             print(f"type={type}")
@@ -502,8 +509,10 @@ def run_inference(output_dir, single_fold):
                 for pf in pred_folds[1:]:
                     pred["score"] += pf["score"]
                 pred["score"] = pred["score"] / CFG.n_folds
+            del pred_folds
+            gc.collect()
             preds.append(pred)
-            del pred_folds, pred
+            del pred
             gc.collect()
         del test
         gc.collect()
