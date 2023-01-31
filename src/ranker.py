@@ -405,12 +405,14 @@ def run_train(type, output_dir, single_fold):
     w2v_train_scores = read_train_w2v_scores(type)
     w2v_train_last_scores = read_train_w2v_last_scores(type)
     fasttext_train_scores = read_train_fasttext_scores(type)
+    fasttext_train_last_scores = read_train_fasttext_last_scores(type)
     # mf_train_scores = read_train_mf_scores(type)
     train = train.merge(train_scores, how="left", on=["session", "aid"])
     train = train.merge(train_last_scores, how="left", on=["session", "aid"])
     train = train.merge(w2v_train_scores, how="left", on=["session", "aid"])
     train = train.merge(w2v_train_last_scores, how="left", on=["session", "aid"])
     train = train.merge(fasttext_train_scores, how="left", on=["session", "aid"])
+    train = train.merge(fasttext_train_last_scores, how="left", on=["session", "aid"])
     # _train = _train.merge(mf_train_scores, how="left", on=["session", "aid"])
 
     del train_labels_all, train_scores, w2v_train_scores, fasttext_train_scores
