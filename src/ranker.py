@@ -564,7 +564,7 @@ def run_inference(output_dir, single_fold):
         test = test.merge(fasttext_test_last_scores, how="left", on=["session", "aid"])
         # test = test.merge(mf_test_scores, how="left", on=["session", "aid"])
         feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
-        for type in ["clicks", "carts", "orders"]:
+        for type in ["carts", "orders"]:
             print(f"type={type}")
             pred_folds = []
             for fold in range(CFG.n_folds):
