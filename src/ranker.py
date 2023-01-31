@@ -19,7 +19,7 @@ class CFG:
     cv_only = True
     n_folds = 5
     chunk_split_size = 20
-    chunk_session_split_size = 20
+    chunk_session_split_size = 15
     input_train_dir = "20230121"
     input_test_dir = "20230121"
     input_train_score_dir = "glowing-festival-764"
@@ -29,11 +29,13 @@ class CFG:
     input_train_w2v_score_dir = "virtuous-fuse-850"
     input_train_w2v_last_score_dir = "glowing-rabbit-881"
     input_test_w2v_score_dir = "glowing-snake-851"
+    input_test_w2v_last_score_dir = "lucky-fish-882"
     input_train_mf_score_dir = "filigreed-rabbit-858"
     input_test_mf_score_dir = ""  # FIXME
     input_train_fasttext_score_dir = "bright-snake-860"
     input_train_fasttext_last_score_dir = "enchanting-tiger-883"
     input_test_fasttext_score_dir = "dancing-firecracker-862"
+    input_test_fasttext_last_score_dir = "vermilion-lamp-884"
     objective = "lambdarank"
     dtypes = {
         "session": "int32",
@@ -313,6 +315,16 @@ def read_test_w2v_scores():
     return df
 
 
+def read_test_w2v_last_scores():
+    df = pl.read_parquet(f"./input/word2vec_score/{CFG.input_test_w2v_last_score_dir}/*").to_pandas()
+    for c in ["last_score"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    df = df.rename(columns={"last_score": "w2v_last_score"})
+    return df
+
+
 def read_test_mf_scores():
     df = pl.read_parquet(f"./input/mf_score/{CFG.input_test_mf_score_dir}/*").to_pandas()
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
@@ -330,6 +342,15 @@ def read_test_fasttext_scores():
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
     df = df.rename(columns={"score_mean": "fasttext_score_mean", "score_std": "fasttext_score_std", "score_max": "fasttext_score_max", "score_min": "fasttext_score_min", "score_length": "fasttext_score_length"})
+    return df
+
+def read_test_fasttext_last_scores():
+    df = pl.read_parquet(f"./input/fasttext_score/{CFG.input_test_fasttext_last_score_dir}/*").to_pandas()
+    for c in ["last_score"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    df = df.rename(columns={"last_score": "fasttext_last_score"})
     return df
 
 def dump_pickle(path, o):
@@ -516,7 +537,9 @@ def run_inference(output_dir, single_fold):
     # embeddings_df = read_session_embeddings()
     test_scores = read_test_scores()
     w2v_test_scores = read_test_w2v_scores()
+    w2v_test_last_scores = read_test_w2v_last_scores()
     fasttext_test_scores = read_test_fasttext_scores()
+    fasttext_test_last_scores = read_test_fasttext_last_scores()
     # mf_test_scores = read_test_mf_scores()
     for files in files_list:
         dfs = []
@@ -532,7 +555,9 @@ def run_inference(output_dir, single_fold):
         # score
         test = test.merge(test_scores, how="left", on=["session", "aid"])
         test = test.merge(w2v_test_scores, how="left", on=["session", "aid"])
+        test = test.merge(w2v_test_last_scores, how="left", on=["session", "aid"])
         test = test.merge(fasttext_test_scores, how="left", on=["session", "aid"])
+        test = test.merge(fasttext_test_last_scores, how="left", on=["session", "aid"])
         # test = test.merge(mf_test_scores, how="left", on=["session", "aid"])
         feature_cols = test.drop(columns=["session", "aid"]).columns.tolist()
         for type in ["clicks", "carts", "orders"]:
