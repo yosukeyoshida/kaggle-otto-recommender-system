@@ -25,11 +25,14 @@ class CFG:
     input_train_score_dir = "glowing-festival-764"
     input_train_last_score_dir = "brilliant-monkey-875"
     input_test_score_dir = "flashing-orchid-776"
+    input_test_last_score_dir = "vibrant-rooster-879"
     input_train_w2v_score_dir = "virtuous-fuse-850"
+    input_train_w2v_last_score_dir = "glowing-rabbit-881"
     input_test_w2v_score_dir = "glowing-snake-851"
     input_train_mf_score_dir = "filigreed-rabbit-858"
     input_test_mf_score_dir = ""  # FIXME
     input_train_fasttext_score_dir = "bright-snake-860"
+    input_train_fasttext_last_score_dir = "enchanting-tiger-883"
     input_test_fasttext_score_dir = "dancing-firecracker-862"
     objective = "lambdarank"
     dtypes = {
@@ -242,6 +245,16 @@ def read_train_w2v_scores(type):
     return df
 
 
+def read_train_w2v_last_scores(type):
+    df = pd.read_parquet(f"./input/word2vec_score/{CFG.input_train_w2v_last_score_dir}/train_score_{type}.parquet")
+    for c in ["last_score"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    df = df.rename(columns={"last_score": "w2v_last_score"})
+    return df
+
+
 def read_train_mf_scores(type):
     df = pd.read_parquet(f"./input/mf_score/{CFG.input_train_mf_score_dir}/train_score_{type}.parquet")
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
@@ -262,9 +275,28 @@ def read_train_fasttext_scores(type):
     return df
 
 
+def read_train_fasttext_last_scores(type):
+    df = pd.read_parquet(f"./input/fasttext_score/{CFG.input_train_fasttext_last_score_dir}/train_score_{type}.parquet")
+    for c in ["last_score"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    df = df.rename(columns={"last_score": "fasttext_last_score"})
+    return df
+
+
 def read_test_scores():
     df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_test_score_dir}/*").to_pandas()
     for c in ["score_mean", "score_std", "score_max", "score_min", "score_length"]:
+        df[c] = df[c].astype("float16")
+    df["aid"] = df["aid"].astype("int32")
+    df["session"] = df["session"].astype("int32")
+    return df
+
+
+def read_test_last_scores():
+    df = pl.read_parquet(f"./input/lightfm_score/{CFG.input_test_last_score_dir}/*").to_pandas()
+    for c in ["last_score"]:
         df[c] = df[c].astype("float16")
     df["aid"] = df["aid"].astype("int32")
     df["session"] = df["session"].astype("int32")
@@ -350,11 +382,13 @@ def run_train(type, output_dir, single_fold):
     train_scores = read_train_scores(type)
     train_last_scores = read_train_last_scores(type)
     w2v_train_scores = read_train_w2v_scores(type)
+    w2v_train_last_scores = read_train_w2v_last_scores(type)
     fasttext_train_scores = read_train_fasttext_scores(type)
     # mf_train_scores = read_train_mf_scores(type)
     train = train.merge(train_scores, how="left", on=["session", "aid"])
     train = train.merge(train_last_scores, how="left", on=["session", "aid"])
     train = train.merge(w2v_train_scores, how="left", on=["session", "aid"])
+    train = train.merge(w2v_train_last_scores, how="left", on=["session", "aid"])
     train = train.merge(fasttext_train_scores, how="left", on=["session", "aid"])
     # _train = _train.merge(mf_train_scores, how="left", on=["session", "aid"])
 
